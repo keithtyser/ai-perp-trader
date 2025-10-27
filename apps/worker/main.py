@@ -529,6 +529,12 @@ class AgentWorker:
             else:
                 liquidation_price = pos.avg_entry * (1 + (1 / leverage) * 0.95) if leverage > 0 else 0
 
+            # Calculate holding time
+            entry_time = getattr(pos, 'entry_time', None)
+            holding_time_minutes = None
+            if entry_time:
+                holding_time_minutes = int((datetime.utcnow() - entry_time).total_seconds() / 60)
+
             positions.append(Position(
                 symbol=pos.symbol,
                 qty=pos.qty,
@@ -537,6 +543,8 @@ class AgentWorker:
                 liquidation_price=max(0, liquidation_price),
                 unrealized_pnl=unrealized_pnl,
                 leverage=leverage,
+                entry_time=entry_time,
+                holding_time_minutes=holding_time_minutes,
             ))
 
         # calculate total return percentage

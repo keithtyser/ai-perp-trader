@@ -46,20 +46,43 @@ class Database:
                 # close position
                 await conn.execute("delete from positions where symbol = $1", symbol)
             else:
-                await conn.execute(
-                    """
-                    insert into positions (symbol, qty, avg_entry, unrealized_pl, exit_plan, leverage, updated_at)
-                    values ($1, $2, $3, $4, $5, $6, now())
-                    on conflict (symbol)
-                    do update set qty = $2, avg_entry = $3, unrealized_pl = $4, exit_plan = $5, leverage = $6, updated_at = now()
-                    """,
-                    symbol, qty, avg_entry, unrealized_pl, json.dumps(exit_plan) if exit_plan else None, leverage,
-                )
+                # Check if this is a new position or position direction change
+                existing = await conn.fetchrow("select qty, entry_time from positions where symbol = $1", symbol)
+
+                if existing is None:
+                    # New position - set entry_time
+                    await conn.execute(
+                        """
+                        insert into positions (symbol, qty, avg_entry, unrealized_pl, exit_plan, leverage, entry_time, updated_at)
+                        values ($1, $2, $3, $4, $5, $6, now(), now())
+                        """,
+                        symbol, qty, avg_entry, unrealized_pl, json.dumps(exit_plan) if exit_plan else None, leverage,
+                    )
+                elif (existing['qty'] > 0 and qty < 0) or (existing['qty'] < 0 and qty > 0):
+                    # Direction change - reset entry_time
+                    await conn.execute(
+                        """
+                        update positions
+                        set qty = $2, avg_entry = $3, unrealized_pl = $4, exit_plan = $5, leverage = $6, entry_time = now(), updated_at = now()
+                        where symbol = $1
+                        """,
+                        symbol, qty, avg_entry, unrealized_pl, json.dumps(exit_plan) if exit_plan else None, leverage,
+                    )
+                else:
+                    # Same direction - preserve entry_time
+                    await conn.execute(
+                        """
+                        update positions
+                        set qty = $2, avg_entry = $3, unrealized_pl = $4, exit_plan = $5, leverage = $6, updated_at = now()
+                        where symbol = $1
+                        """,
+                        symbol, qty, avg_entry, unrealized_pl, json.dumps(exit_plan) if exit_plan else None, leverage,
+                    )
 
     async def get_positions(self) -> List[Dict]:
         """fetch all open positions"""
         async with self.pool.acquire() as conn:
-            rows = await conn.fetch("select symbol, qty, avg_entry, unrealized_pl, exit_plan, leverage from positions")
+            rows = await conn.fetch("select symbol, qty, avg_entry, unrealized_pl, exit_plan, leverage, entry_time from positions")
             result = []
             for r in rows:
                 pos = dict(r)

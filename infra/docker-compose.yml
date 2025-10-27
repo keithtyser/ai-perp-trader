@@ -16,6 +16,7 @@ services:
       - ../db/migrations/2025_10_26_add_market_prices.sql:/docker-entrypoint-initdb.d/05-market-prices.sql
       - ../db/migrations/2025_10_26_add_exit_plan_to_positions.sql:/docker-entrypoint-initdb.d/06-exit-plan.sql
       - ../db/migrations/2025_10_26_add_leverage_to_positions.sql:/docker-entrypoint-initdb.d/07-leverage.sql
+      - ../db/migrations/2025_10_27_add_position_entry_time.sql:/docker-entrypoint-initdb.d/08-position-entry-time.sql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U agent -d ai_perp_trader"]
       interval: 5s

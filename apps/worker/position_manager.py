@@ -2,10 +2,14 @@
 import logging
 import uuid
 from typing import List, Dict, Optional
+from datetime import datetime
 from schemas import PositionDecision, Position
 from adapters import Order as AdapterOrder, BrokerAdapter, PlacedOrder, CancelResult
 
 logger = logging.getLogger(__name__)
+
+# Minimum holding period in minutes before allowing position closure
+MIN_HOLDING_PERIOD_MINUTES = 5
 
 
 class PositionManager:
@@ -66,6 +70,16 @@ class PositionManager:
                 if decision.signal == "close":
                     # Close entire position
                     if current_qty != 0:
+                        # Log warning for early exits (informational only, don't block)
+                        if current_pos and hasattr(current_pos, 'entry_time') and current_pos.entry_time:
+                            holding_time_minutes = (datetime.utcnow() - current_pos.entry_time).total_seconds() / 60
+                            if holding_time_minutes < MIN_HOLDING_PERIOD_MINUTES:
+                                logger.warning(
+                                    f"{coin}: Early exit after only {holding_time_minutes:.1f} minutes. "
+                                    f"This may incur unnecessary fees (~4bps round-trip). "
+                                    f"Entry: ${current_pos.avg_entry:.2f}, Current: ${market_prices.get(symbol, 0):.2f}"
+                                )
+
                         await self._close_position(symbol, current_qty, errors)
 
                 elif decision.signal == "hold":

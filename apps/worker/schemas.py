@@ -54,6 +54,8 @@ class Position(BaseModel):
     liquidation_price: Optional[float] = None
     unrealized_pnl: Optional[float] = None
     leverage: Optional[float] = None
+    entry_time: Optional[datetime] = None
+    holding_time_minutes: Optional[int] = None
 
 
 class Account(BaseModel):

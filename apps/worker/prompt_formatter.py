@@ -157,6 +157,8 @@ Total Fees Paid: {acc.fees_paid_total:.2f}
     if acc.positions and len(acc.positions) > 0:
         prompt += "Current live positions & performance:\n\n"
         for pos in acc.positions:
+            holding_time_str = f"{pos.holding_time_minutes} minutes" if hasattr(pos, 'holding_time_minutes') and pos.holding_time_minutes is not None else "N/A"
+
             prompt += f"""Symbol: {pos.symbol.replace('-USD', '')}
 Quantity: {pos.qty}
 Entry Price: {pos.avg_entry}
@@ -164,6 +166,7 @@ Current Price: {pos.current_price if hasattr(pos, 'current_price') else 'N/A'}
 Liquidation Price: {pos.liquidation_price if hasattr(pos, 'liquidation_price') else 'N/A'}
 Unrealized P&L: {pos.unrealized_pnl}
 Leverage: {pos.leverage if hasattr(pos, 'leverage') else 'N/A'}
+Holding Time: {holding_time_str}
 
 """
     else:

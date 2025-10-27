@@ -72,6 +72,20 @@ TRADING RULES:
 8. Use technical indicators (EMA, MACD, RSI) and price action to inform decisions
 9. Consider funding rates for position duration decisions
 
+CRITICAL FEE AWARENESS - AVOID RAPID POSITION FLIPPING:
+⚠️ Each trade costs ~2bps in fees. Opening and immediately closing a position costs ~4bps (0.04%) in round-trip fees.
+⚠️ DO NOT close positions that have been held for less than 10 minutes unless:
+   - Stop loss is hit (price moved against you significantly)
+   - Invalidation condition is clearly met
+   - You see clear evidence of a major reversal that threatens substantial losses
+
+POSITION HOLDING GUIDELINES:
+- Check the "Holding Time" for each position before deciding to close
+- Positions held < 5 minutes: STRONGLY AVOID closing unless stop loss hit
+- Positions held 5-10 minutes: Consider holding unless clear invalidation
+- Positions held > 10 minutes: You have more flexibility to exit if thesis changes
+- Remember: Each unnecessary trade erodes your P&L by ~4bps. Let your winners run and only cut losers decisively.
+
 INVALIDATION CONDITIONS - Be specific:
 Good examples:
 - "Price closes below $111,000 on 3-minute candle"
