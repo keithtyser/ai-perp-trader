@@ -174,10 +174,33 @@ Holding Time: {holding_time_str}
 
     # Add performance metrics
     if obs.scoreboard:
-        prompt += f"""Performance Metrics:
-All-Time P&L: {obs.scoreboard.pnl_all_time:.2f}
+        prompt += f"""PERFORMANCE METRICS & TRADING STATISTICS
+
+Overall Performance:
+All-Time P&L: ${obs.scoreboard.pnl_all_time:.2f}
 Sharpe Ratio (30d): {obs.scoreboard.sharpe_30d:.3f}
-Max Drawdown: {obs.scoreboard.max_dd:.2f}
+Max Drawdown: {obs.scoreboard.max_dd:.2f}%
+
+"""
+        # Add detailed trading statistics if available
+        if obs.scoreboard.performance:
+            perf = obs.scoreboard.performance
+            prompt += f"""Detailed Trading Statistics:
+Total Completed Trades: {perf.total_trades}
+Win Rate: {perf.win_rate:.1f}% ({perf.winning_trades} wins / {perf.losing_trades} losses)
+Average Win: ${perf.avg_win:.2f}
+Average Loss: ${perf.avg_loss:.2f}
+Profit Factor: {perf.profit_factor:.2f} (avg_win / |avg_loss|)
+Largest Win: ${perf.largest_win:.2f}
+Largest Loss: ${perf.largest_loss:.2f}
+Average Hold Time: {perf.avg_hold_time_minutes:.1f} minutes
+Total Volume Traded: ${perf.total_volume:.2f}
+
+IMPORTANT: These statistics show your actual trading performance.
+- A win rate of 30-40% with profit factor > 2.0 is profitable (big wins, small losses)
+- A win rate of 50-60% with profit factor > 1.5 is good
+- Consecutive losses are NORMAL - don't panic and change strategy if your overall stats are good
+- If profit factor < 1.0, you're losing money on average - adjust stops/targets
 
 """
 

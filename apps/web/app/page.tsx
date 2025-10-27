@@ -21,6 +21,9 @@ export default function OverviewPage() {
   const { data: prices } = useSWR('market-prices', api.getMarketPrices, {
     refreshInterval: 5000, // Update prices every 5 seconds
   });
+  const { data: perfStats } = useSWR('performance-stats', api.getPerformanceStats, {
+    refreshInterval: 30000,
+  });
 
   const chartData = equity?.map((point) => {
     const date = new Date(point.ts);
@@ -42,9 +45,9 @@ export default function OverviewPage() {
   const returnColor = returnPct >= 0 ? 'text-green-500' : 'text-red-500';
 
   // Calculate highest and lowest return percentages from equity curve
-  let highestReturnPct = 0;
-  let lowestReturnPct = 0;
-  if (equity && equity.length > 0) {
+  let highestReturnPct: number | null = null;
+  let lowestReturnPct: number | null = null;
+  if (equity && equity.length > 1) {
     const maxEquity = Math.max(...equity.map(p => p.equity));
     const minEquity = Math.min(...equity.map(p => p.equity));
     highestReturnPct = ((maxEquity - startEquity) / startEquity) * 100;
@@ -87,7 +90,7 @@ export default function OverviewPage() {
         <div className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
           <div className="text-sm text-gray-500 dark:text-gray-400 mb-1">HIGHEST</div>
           <div className="text-lg font-semibold text-green-500">
-            {highestReturnPct > 0 ? `+${highestReturnPct.toFixed(2)}%` : highestReturnPct === 0 ? '--' : `${highestReturnPct.toFixed(2)}%`}
+            {highestReturnPct === null ? '--' : highestReturnPct > 0 ? `+${highestReturnPct.toFixed(2)}%` : `${highestReturnPct.toFixed(2)}%`}
           </div>
           <div className="text-xs text-gray-400">Keith's Crypto Agent</div>
         </div>
@@ -95,7 +98,7 @@ export default function OverviewPage() {
         <div className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
           <div className="text-sm text-gray-500 dark:text-gray-400 mb-1">LOWEST</div>
           <div className="text-lg font-semibold text-red-500">
-            {lowestReturnPct < 0 ? `${lowestReturnPct.toFixed(2)}%` : lowestReturnPct === 0 ? '--' : `+${lowestReturnPct.toFixed(2)}%`}
+            {lowestReturnPct === null ? '--' : lowestReturnPct < 0 ? `${lowestReturnPct.toFixed(2)}%` : `+${lowestReturnPct.toFixed(2)}%`}
           </div>
           <div className="text-xs text-gray-400">Keith's Crypto Agent</div>
         </div>
@@ -103,10 +106,120 @@ export default function OverviewPage() {
         <div className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
           <div className="text-sm text-gray-500 dark:text-gray-400 mb-1">MAX DRAWDOWN</div>
           <div className="text-lg font-semibold text-red-500">
-            ${pl?.max_drawdown.toFixed(2) ?? '0.00'}
+            {pl?.max_drawdown ? `${pl.max_drawdown.toFixed(2)}%` : '--'}
           </div>
         </div>
       </div>
+
+      {/* Trading Performance Statistics */}
+      {perfStats && perfStats.total_trades > 0 && (
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 border border-gray-200 dark:border-gray-700">
+          <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-4">
+            Trading Performance Statistics
+          </h3>
+
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+            {/* Win Rate */}
+            <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-4">
+              <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">WIN RATE</div>
+              <div className={`text-2xl font-bold ${perfStats.win_rate >= 50 ? 'text-green-500' : 'text-yellow-500'}`}>
+                {perfStats.win_rate.toFixed(1)}%
+              </div>
+              <div className="text-xs text-gray-400 mt-1">
+                {perfStats.winning_trades}W / {perfStats.losing_trades}L
+              </div>
+            </div>
+
+            {/* Profit Factor */}
+            <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-4">
+              <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">PROFIT FACTOR</div>
+              <div className={`text-2xl font-bold ${perfStats.profit_factor >= 1.5 ? 'text-green-500' : perfStats.profit_factor >= 1.0 ? 'text-yellow-500' : 'text-red-500'}`}>
+                {perfStats.profit_factor.toFixed(2)}x
+              </div>
+              <div className="text-xs text-gray-400 mt-1">
+                {perfStats.profit_factor >= 2.0 ? 'Excellent' : perfStats.profit_factor >= 1.5 ? 'Good' : perfStats.profit_factor >= 1.0 ? 'Profitable' : 'Losing'}
+              </div>
+            </div>
+
+            {/* Average Win */}
+            <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-4">
+              <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">AVG WIN</div>
+              <div className="text-2xl font-bold text-green-500">
+                ${perfStats.avg_win.toFixed(2)}
+              </div>
+              <div className="text-xs text-gray-400 mt-1">
+                Max: ${perfStats.largest_win.toFixed(2)}
+              </div>
+            </div>
+
+            {/* Average Loss */}
+            <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-4">
+              <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">AVG LOSS</div>
+              <div className="text-2xl font-bold text-red-500">
+                ${perfStats.avg_loss.toFixed(2)}
+              </div>
+              <div className="text-xs text-gray-400 mt-1">
+                Max: ${perfStats.largest_loss.toFixed(2)}
+              </div>
+            </div>
+
+            {/* Total Trades */}
+            <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-4">
+              <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">TOTAL TRADES</div>
+              <div className="text-2xl font-bold text-gray-900 dark:text-white">
+                {perfStats.total_trades}
+              </div>
+              <div className="text-xs text-gray-400 mt-1">
+                Completed
+              </div>
+            </div>
+
+            {/* Avg Hold Time */}
+            <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-4">
+              <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">AVG HOLD TIME</div>
+              <div className={`text-2xl font-bold ${perfStats.avg_hold_time_minutes >= 10 ? 'text-green-500' : perfStats.avg_hold_time_minutes >= 5 ? 'text-yellow-500' : 'text-red-500'}`}>
+                {perfStats.avg_hold_time_minutes.toFixed(1)}m
+              </div>
+              <div className="text-xs text-gray-400 mt-1">
+                {perfStats.avg_hold_time_minutes < 5 ? 'Churning' : perfStats.avg_hold_time_minutes < 10 ? 'Short-term' : 'Good'}
+              </div>
+            </div>
+
+            {/* Sharpe Ratio */}
+            <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-4">
+              <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">SHARPE (30D)</div>
+              <div className={`text-2xl font-bold ${perfStats.sharpe_30d >= 2.0 ? 'text-green-500' : perfStats.sharpe_30d >= 1.0 ? 'text-yellow-500' : 'text-gray-500'}`}>
+                {perfStats.sharpe_30d.toFixed(2)}
+              </div>
+              <div className="text-xs text-gray-400 mt-1">
+                Risk-adjusted
+              </div>
+            </div>
+
+            {/* Max Drawdown */}
+            <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-4">
+              <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">MAX DRAWDOWN</div>
+              <div className="text-2xl font-bold text-red-500">
+                {perfStats.max_dd.toFixed(2)}%
+              </div>
+              <div className="text-xs text-gray-400 mt-1">
+                Peak to trough
+              </div>
+            </div>
+
+            {/* Total Volume */}
+            <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-4">
+              <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">TOTAL VOLUME</div>
+              <div className="text-2xl font-bold text-gray-900 dark:text-white">
+                ${perfStats.total_volume >= 1000 ? (perfStats.total_volume / 1000).toFixed(1) + 'k' : perfStats.total_volume.toFixed(0)}
+              </div>
+              <div className="text-xs text-gray-400 mt-1">
+                Traded
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Main Chart */}
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 border border-gray-200 dark:border-gray-700">

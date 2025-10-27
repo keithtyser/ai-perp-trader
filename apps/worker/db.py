@@ -301,3 +301,153 @@ class Database:
                     """,
                     symbol, price,
                 )
+
+    async def calculate_performance_metrics(self) -> Dict:
+        """
+        Calculate comprehensive performance metrics from completed trades.
+
+        Returns dict with:
+        - win_rate: % of profitable trades
+        - total_trades: total number of completed trades
+        - winning_trades: number of profitable trades
+        - losing_trades: number of losing trades
+        - avg_win: average profit on winning trades
+        - avg_loss: average loss on losing trades
+        - profit_factor: avg_win / avg_loss (or 0 if no losses)
+        - largest_win: biggest single winning trade
+        - largest_loss: biggest single losing trade
+        - avg_hold_time_minutes: average holding time across all trades
+        - total_volume: total traded volume
+        """
+        completed = await self.get_completed_trades(limit=10000)  # Get all trades
+
+        if not completed:
+            return {
+                "win_rate": 0.0,
+                "total_trades": 0,
+                "winning_trades": 0,
+                "losing_trades": 0,
+                "avg_win": 0.0,
+                "avg_loss": 0.0,
+                "profit_factor": 0.0,
+                "largest_win": 0.0,
+                "largest_loss": 0.0,
+                "avg_hold_time_minutes": 0.0,
+                "total_volume": 0.0,
+            }
+
+        winning_trades = [t for t in completed if t["net_pnl"] > 0]
+        losing_trades = [t for t in completed if t["net_pnl"] < 0]
+
+        total_trades = len(completed)
+        num_wins = len(winning_trades)
+        num_losses = len(losing_trades)
+
+        win_rate = (num_wins / total_trades * 100) if total_trades > 0 else 0.0
+
+        avg_win = sum(t["net_pnl"] for t in winning_trades) / num_wins if num_wins > 0 else 0.0
+        avg_loss = sum(t["net_pnl"] for t in losing_trades) / num_losses if num_losses > 0 else 0.0
+
+        profit_factor = abs(avg_win / avg_loss) if avg_loss != 0 else 0.0
+
+        largest_win = max((t["net_pnl"] for t in winning_trades), default=0.0)
+        largest_loss = min((t["net_pnl"] for t in losing_trades), default=0.0)
+
+        avg_hold_time_minutes = sum(t["holding_time_seconds"] for t in completed) / len(completed) / 60.0
+
+        total_volume = sum(t["entry_notional"] for t in completed)
+
+        return {
+            "win_rate": round(win_rate, 2),
+            "total_trades": total_trades,
+            "winning_trades": num_wins,
+            "losing_trades": num_losses,
+            "avg_win": round(avg_win, 2),
+            "avg_loss": round(avg_loss, 2),
+            "profit_factor": round(profit_factor, 2),
+            "largest_win": round(largest_win, 2),
+            "largest_loss": round(largest_loss, 2),
+            "avg_hold_time_minutes": round(avg_hold_time_minutes, 1),
+            "total_volume": round(total_volume, 2),
+        }
+
+    async def calculate_sharpe_ratio(self, days: int = 30) -> float:
+        """
+        Calculate Sharpe ratio from equity snapshots.
+
+        Args:
+            days: Number of days to look back
+
+        Returns:
+            Annualized Sharpe ratio
+        """
+        async with self.pool.acquire() as conn:
+            # Get equity snapshots for the last N days
+            rows = await conn.fetch(
+                f"""
+                select ts, equity
+                from equity_snapshots
+                where ts >= now() - interval '{days} days'
+                order by ts
+                """
+            )
+
+            if len(rows) < 2:
+                return 0.0
+
+            # Calculate returns
+            equities = [float(r["equity"]) for r in rows]
+            returns = []
+            for i in range(1, len(equities)):
+                if equities[i-1] != 0:
+                    ret = (equities[i] - equities[i-1]) / equities[i-1]
+                    returns.append(ret)
+
+            if not returns:
+                return 0.0
+
+            # Calculate Sharpe
+            import numpy as np
+            mean_return = np.mean(returns)
+            std_return = np.std(returns)
+
+            if std_return == 0:
+                return 0.0
+
+            # Annualize (assuming 1 snapshot per minute, 1440 per day)
+            sharpe = (mean_return / std_return) * np.sqrt(1440 * 365)
+
+            return round(sharpe, 3)
+
+    async def calculate_max_drawdown(self) -> float:
+        """
+        Calculate maximum drawdown from equity curve.
+
+        Returns:
+            Maximum drawdown as a percentage
+        """
+        async with self.pool.acquire() as conn:
+            rows = await conn.fetch(
+                """
+                select equity
+                from equity_snapshots
+                order by ts
+                """
+            )
+
+            if len(rows) < 2:
+                return 0.0
+
+            equities = [float(r["equity"]) for r in rows]
+
+            peak = equities[0]
+            max_dd = 0.0
+
+            for equity in equities:
+                if equity > peak:
+                    peak = equity
+
+                drawdown = (peak - equity) / peak * 100 if peak > 0 else 0.0
+                max_dd = max(max_dd, drawdown)
+
+            return round(max_dd, 2)

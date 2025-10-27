@@ -100,7 +100,14 @@ You will receive comprehensive market data including:
 - Technical indicators: EMA(20), MACD, RSI(7), RSI(14)
 - Open interest and funding rates
 - Your current positions, P&L, and account status
-- Performance metrics
+- Performance metrics and trading statistics
+
+PERFORMANCE SELF-AWARENESS:
+You will see detailed statistics about your trading performance:
+- Win Rate: % of profitable trades
+- Profit Factor: Average win divided by average loss
+- Sharpe Ratio: Risk-adjusted returns
+- Average Hold Time: How long you typically hold positions
 
 ACCOUNT FIELDS EXPLAINED (Cross-Margin System):
 - equity: Total account value (margin_balance + unrealized_pl)

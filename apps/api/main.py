@@ -365,6 +365,173 @@ async def get_market_prices():
         }
 
 
+@app.get("/performance-stats")
+async def get_performance_stats():
+    """
+    Get comprehensive trading performance statistics.
+    Includes win rate, profit factor, sharpe ratio, and more.
+    """
+    async with db_pool.acquire() as conn:
+        # Get all completed trades to calculate metrics
+        rows = await conn.fetch(
+            "select ts, symbol, side, qty, price, fee from trades order by ts"
+        )
+
+        positions = {}
+        completed = []
+
+        for r in rows:
+            symbol = r["symbol"]
+            side = r["side"]
+            qty = float(r["qty"])
+            price = float(r["price"])
+            fee = float(r["fee"])
+            ts = r["ts"]
+
+            if symbol not in positions:
+                positions[symbol] = {
+                    "qty": 0.0,
+                    "cost": 0.0,
+                    "entry_time": None,
+                    "fees": 0.0
+                }
+
+            pos = positions[symbol]
+            signed_qty = qty if side == "buy" else -qty
+
+            if pos["qty"] == 0:
+                pos["qty"] = signed_qty
+                pos["cost"] = signed_qty * price
+                pos["entry_time"] = ts
+                pos["fees"] = fee
+            elif pos["qty"] * signed_qty > 0:
+                pos["qty"] += signed_qty
+                pos["cost"] += signed_qty * price
+                pos["fees"] += fee
+            else:
+                # Closing trade
+                close_qty = min(abs(signed_qty), abs(pos["qty"]))
+                avg_entry = pos["cost"] / pos["qty"] if pos["qty"] != 0 else 0
+
+                if pos["qty"] > 0:
+                    gross_pnl = close_qty * (price - avg_entry)
+                else:
+                    gross_pnl = close_qty * (avg_entry - price)
+
+                close_ratio = close_qty / abs(pos["qty"])
+                allocated_fees = pos["fees"] * close_ratio + fee * (close_qty / abs(signed_qty))
+                net_pnl = gross_pnl - allocated_fees
+
+                holding_time_seconds = (ts - pos["entry_time"]).total_seconds() if pos["entry_time"] else 0
+                entry_notional = close_qty * abs(avg_entry)
+
+                completed.append({
+                    "net_pnl": net_pnl,
+                    "holding_time_seconds": holding_time_seconds,
+                    "entry_notional": entry_notional
+                })
+
+                pos["qty"] += signed_qty
+                if abs(pos["qty"]) < 1e-6:
+                    pos["qty"] = 0.0
+                    pos["cost"] = 0.0
+                    pos["entry_time"] = None
+                    pos["fees"] = 0.0
+                else:
+                    if pos["qty"] * signed_qty > 0:
+                        remaining_qty = abs(pos["qty"])
+                        pos["cost"] = pos["qty"] * price
+                        pos["entry_time"] = ts
+                        pos["fees"] = fee * (remaining_qty / abs(signed_qty))
+                    else:
+                        pos["cost"] *= (1 - close_ratio)
+                        pos["fees"] *= (1 - close_ratio)
+
+        # Calculate performance metrics
+        if not completed:
+            return {
+                "win_rate": 0.0,
+                "total_trades": 0,
+                "winning_trades": 0,
+                "losing_trades": 0,
+                "avg_win": 0.0,
+                "avg_loss": 0.0,
+                "profit_factor": 0.0,
+                "largest_win": 0.0,
+                "largest_loss": 0.0,
+                "avg_hold_time_minutes": 0.0,
+                "total_volume": 0.0,
+                "sharpe_30d": 0.0,
+                "max_dd": 0.0,
+            }
+
+        winning_trades = [t for t in completed if t["net_pnl"] > 0]
+        losing_trades = [t for t in completed if t["net_pnl"] < 0]
+
+        total_trades = len(completed)
+        num_wins = len(winning_trades)
+        num_losses = len(losing_trades)
+
+        win_rate = (num_wins / total_trades * 100) if total_trades > 0 else 0.0
+        avg_win = sum(t["net_pnl"] for t in winning_trades) / num_wins if num_wins > 0 else 0.0
+        avg_loss = sum(t["net_pnl"] for t in losing_trades) / num_losses if num_losses > 0 else 0.0
+        profit_factor = abs(avg_win / avg_loss) if avg_loss != 0 else 0.0
+        largest_win = max((t["net_pnl"] for t in winning_trades), default=0.0)
+        largest_loss = min((t["net_pnl"] for t in losing_trades), default=0.0)
+        avg_hold_time_minutes = sum(t["holding_time_seconds"] for t in completed) / len(completed) / 60.0
+        total_volume = sum(t["entry_notional"] for t in completed)
+
+        # Get Sharpe and max DD from equity curve
+        equity_rows = await conn.fetch(
+            "select ts, equity from equity_snapshots where ts >= now() - interval '30 days' order by ts"
+        )
+
+        sharpe_30d = 0.0
+        if len(equity_rows) >= 2:
+            equities = [float(r["equity"]) for r in equity_rows]
+            returns = []
+            for i in range(1, len(equities)):
+                if equities[i-1] != 0:
+                    ret = (equities[i] - equities[i-1]) / equities[i-1]
+                    returns.append(ret)
+
+            if returns:
+                import math
+                mean_return = sum(returns) / len(returns)
+                variance = sum((r - mean_return) ** 2 for r in returns) / len(returns)
+                std_return = math.sqrt(variance)
+                if std_return != 0:
+                    sharpe_30d = (mean_return / std_return) * math.sqrt(1440 * 365)
+
+        # Calculate max drawdown
+        all_equity_rows = await conn.fetch("select equity from equity_snapshots order by ts")
+        max_dd = 0.0
+        if len(all_equity_rows) >= 2:
+            equities = [float(r["equity"]) for r in all_equity_rows]
+            peak = equities[0]
+            for equity in equities:
+                if equity > peak:
+                    peak = equity
+                drawdown = (peak - equity) / peak * 100 if peak > 0 else 0.0
+                max_dd = max(max_dd, drawdown)
+
+        return {
+            "win_rate": round(win_rate, 2),
+            "total_trades": total_trades,
+            "winning_trades": num_wins,
+            "losing_trades": num_losses,
+            "avg_win": round(avg_win, 2),
+            "avg_loss": round(avg_loss, 2),
+            "profit_factor": round(profit_factor, 2),
+            "largest_win": round(largest_win, 2),
+            "largest_loss": round(largest_loss, 2),
+            "avg_hold_time_minutes": round(avg_hold_time_minutes, 1),
+            "total_volume": round(total_volume, 2),
+            "sharpe_30d": round(sharpe_30d, 3),
+            "max_dd": round(max_dd, 2),
+        }
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)

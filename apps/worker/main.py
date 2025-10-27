@@ -584,13 +584,23 @@ class AgentWorker:
             max_leverage=adapter_limits.max_leverage,
         )
 
-        # scoreboard
+        # scoreboard with performance metrics
         pnl_all_time = account_state.realized_pl + account_state.unrealized_pl
+
+        # Calculate comprehensive performance metrics
+        perf_metrics_dict = await self.db.calculate_performance_metrics()
+        sharpe_30d = await self.db.calculate_sharpe_ratio(days=30)
+        max_dd = await self.db.calculate_max_drawdown()
+
+        # Create PerformanceMetrics object
+        from schemas import PerformanceMetrics
+        performance = PerformanceMetrics(**perf_metrics_dict)
 
         scoreboard = Scoreboard(
             pnl_all_time=pnl_all_time,
-            sharpe_30d=0.0,  # placeholder
-            max_dd=float(await self.db.get_metadata("max_dd") or 0),
+            sharpe_30d=sharpe_30d,
+            max_dd=max_dd,
+            performance=performance,
         )
 
         # calculate minutes since start

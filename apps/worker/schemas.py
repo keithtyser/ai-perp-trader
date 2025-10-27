@@ -75,10 +75,26 @@ class Limits(BaseModel):
     max_leverage: float
 
 
+class PerformanceMetrics(BaseModel):
+    """Detailed trading performance statistics"""
+    win_rate: float  # % of profitable trades
+    total_trades: int
+    winning_trades: int
+    losing_trades: int
+    avg_win: float  # average profit on winning trades
+    avg_loss: float  # average loss on losing trades (negative number)
+    profit_factor: float  # |avg_win / avg_loss|
+    largest_win: float
+    largest_loss: float  # negative number
+    avg_hold_time_minutes: float
+    total_volume: float
+
+
 class Scoreboard(BaseModel):
     pnl_all_time: float
     sharpe_30d: float
     max_dd: float
+    performance: Optional[PerformanceMetrics] = None
 
 
 class Observation(BaseModel):
