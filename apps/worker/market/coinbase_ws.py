@@ -37,6 +37,7 @@ class CoinbaseWebSocket:
         self.ws_url = ws_url
         self.ws = None
         self.running = False
+        self.last_tick_time = datetime.utcnow()  # Track last message time
 
         # ohlcv ring buffer for 1m candles (last 240 candles = 4 hours)
         # Pre-fill with historical data if provided
@@ -75,29 +76,43 @@ class CoinbaseWebSocket:
             raise
 
     async def start(self):
-        """start listening to websocket messages"""
-        if not self.ws:
-            await self.connect()
+        """start listening to websocket messages with auto-reconnect"""
+        retry_delay = 1  # Start with 1 second
+        max_retry_delay = 60  # Max 60 seconds between retries
 
-        try:
-            async for message in self.ws:
-                if not self.running:
-                    break
+        while self.running:
+            try:
+                if not self.ws or self.ws.closed:
+                    await self.connect()
+                    retry_delay = 1  # Reset delay on successful connection
 
-                try:
-                    data = json.loads(message)
-                    await self._handle_message(data)
-                except json.JSONDecodeError as e:
-                    logger.error(f"failed to parse ws message: {e}")
-                except Exception as e:
-                    logger.error(f"error handling message: {e}")
+                async for message in self.ws:
+                    if not self.running:
+                        break
 
-        except websockets.exceptions.ConnectionClosed:
-            logger.warning("coinbase ws connection closed")
-        except Exception as e:
-            logger.error(f"coinbase ws error: {e}")
-        finally:
-            await self.close()
+                    try:
+                        data = json.loads(message)
+                        await self._handle_message(data)
+                    except json.JSONDecodeError as e:
+                        logger.error(f"failed to parse ws message: {e}")
+                    except Exception as e:
+                        logger.error(f"error handling message: {e}")
+
+            except websockets.exceptions.ConnectionClosed:
+                logger.warning(f"coinbase ws connection closed, reconnecting in {retry_delay}s...")
+                await asyncio.sleep(retry_delay)
+                retry_delay = min(retry_delay * 2, max_retry_delay)  # Exponential backoff
+            except Exception as e:
+                logger.error(f"coinbase ws error: {e}, reconnecting in {retry_delay}s...")
+                await asyncio.sleep(retry_delay)
+                retry_delay = min(retry_delay * 2, max_retry_delay)
+            finally:
+                if self.ws and not self.ws.closed:
+                    try:
+                        await self.ws.close()
+                    except:
+                        pass
+                self.ws = None
 
     async def _handle_message(self, data: dict):
         """handle incoming websocket message"""
@@ -118,6 +133,9 @@ class CoinbaseWebSocket:
                 ts = datetime.utcnow()
 
             if best_bid > 0 and best_ask > 0:
+                # Update last tick time
+                self.last_tick_time = datetime.utcnow()
+
                 # call the tick callback
                 self.on_tick(product_id, best_bid, best_ask, ts)
 
@@ -227,6 +245,14 @@ class CoinbaseWebSocket:
     def get_4h_candles(self, symbol: str) -> List[List[float]]:
         """return last 50 4h candles for symbol"""
         return self.candle_4h_buffer.get(symbol, [])
+
+    def is_connection_stale(self, max_seconds=120):
+        """Check if we haven't received ticks in a while"""
+        time_since_last_tick = (datetime.utcnow() - self.last_tick_time).total_seconds()
+        if time_since_last_tick > max_seconds:
+            logger.warning(f"No ticks received for {time_since_last_tick:.0f}s, connection may be stale")
+            return True
+        return False
 
     async def close(self):
         """close websocket connection"""
