@@ -7,6 +7,7 @@ import { useState } from 'react';
 export default function ChatPage() {
   const [limit] = useState(50);
   const [offset, setOffset] = useState(0);
+  const [expandedId, setExpandedId] = useState<number | null>(null);
 
   const { data: messages, error } = useSWR(
     ['chat', limit, offset],
@@ -21,11 +22,6 @@ export default function ChatPage() {
           <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
             MODELCHAT
           </h2>
-        </div>
-        <div>
-          <select className="bg-gray-900 text-white px-4 py-2 rounded border border-gray-700">
-            <option>ALL MODELS</option>
-          </select>
         </div>
       </div>
 
@@ -69,11 +65,45 @@ export default function ChatPage() {
                     <div className="text-gray-700 dark:text-gray-300 leading-relaxed">
                       {msg.content}
                     </div>
-                    <div className="mt-3 text-right">
-                      <button className="text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
-                        click to expand
-                      </button>
-                    </div>
+
+                    {(msg.observation_prompt || msg.action_response) && (
+                      <>
+                        <div className="mt-3 text-right">
+                          <button
+                            onClick={() => setExpandedId(expandedId === msg.id ? null : msg.id)}
+                            className="text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                          >
+                            {expandedId === msg.id ? 'click to collapse' : 'click to expand'}
+                          </button>
+                        </div>
+
+                        {expandedId === msg.id && (
+                          <div className="mt-4 space-y-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+                            {msg.observation_prompt && (
+                              <div>
+                                <h4 className="font-semibold text-sm text-gray-900 dark:text-white mb-2">
+                                  📊 Observation (Prompt Sent to Agent)
+                                </h4>
+                                <pre className="bg-gray-50 dark:bg-gray-900 p-4 rounded text-xs overflow-x-auto whitespace-pre-wrap text-gray-700 dark:text-gray-300">
+                                  {msg.observation_prompt}
+                                </pre>
+                              </div>
+                            )}
+
+                            {msg.action_response && (
+                              <div>
+                                <h4 className="font-semibold text-sm text-gray-900 dark:text-white mb-2">
+                                  🤖 Agent Response (Full Decision)
+                                </h4>
+                                <pre className="bg-gray-50 dark:bg-gray-900 p-4 rounded text-xs overflow-x-auto whitespace-pre-wrap text-gray-700 dark:text-gray-300">
+                                  {JSON.stringify(msg.action_response, null, 2)}
+                                </pre>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </>
+                    )}
                   </div>
                 </div>
               </div>

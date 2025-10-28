@@ -17,6 +17,7 @@ services:
       - ../db/migrations/2025_10_26_add_exit_plan_to_positions.sql:/docker-entrypoint-initdb.d/06-exit-plan.sql
       - ../db/migrations/2025_10_26_add_leverage_to_positions.sql:/docker-entrypoint-initdb.d/07-leverage.sql
       - ../db/migrations/2025_10_27_add_position_entry_time.sql:/docker-entrypoint-initdb.d/08-position-entry-time.sql
+      - ../db/migrations/2025_10_27_add_observation_action_to_chat.sql:/docker-entrypoint-initdb.d/09-observation-action.sql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U agent -d ai_perp_trader"]
       interval: 5s
@@ -55,12 +56,12 @@ services:
       # perpsim config
       SIM_IM: 0.05
       SIM_MM: 0.03
-      SIM_MAX_LEVERAGE: 20.0
+      SIM_MAX_LEVERAGE: 100.0
       SIM_SLIPPAGE_BPS: 1.0
       SIM_FEE_BPS: 2.0
       SIM_LIQ_PENALTY_BPS: 5.0
       SIM_FUNDING_MODE: A
-      SIM_SYMBOLS: ${SIM_SYMBOLS:-BTC-USD,ETH-USD}
+      SIM_SYMBOLS: ${SIM_SYMBOLS:-BTC-USD,ETH-USD,SOL-USD,DOGE-USD,XRP-USD}
       SIM_TICK_SIZE: 0.5
       # data feed
       DATA_FEED: coinbase
@@ -68,7 +69,7 @@ services:
       # agent config
       CYCLE_INTERVAL_SECONDS: 60
       MIN_NOTIONAL: 5.0
-      MAX_LEVERAGE: 20.0
+      MAX_LEVERAGE: 100.0
       DRY_RUN: ${DRY_RUN:-false}
     depends_on:
       db:

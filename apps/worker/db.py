@@ -104,12 +104,14 @@ class Database:
                 ts, equity, cash, unrealized_pl,
             )
 
-    async def insert_chat(self, ts: datetime, content: str, cycle_id: str):
-        """insert model chat note"""
+    async def insert_chat(self, ts: datetime, content: str, cycle_id: str, observation_prompt: str = None, action_response: dict = None):
+        """insert model chat note with optional observation and action"""
+        # Convert action_response dict to JSON string for JSONB column
+        action_json = json.dumps(action_response) if action_response else None
         async with self.pool.acquire() as conn:
             await conn.execute(
-                "insert into model_chat (ts, content, cycle_id) values ($1, $2, $3)",
-                ts, content, cycle_id,
+                "insert into model_chat (ts, content, cycle_id, observation_prompt, action_response) values ($1, $2, $3, $4, $5)",
+                ts, content, cycle_id, observation_prompt, action_json,
             )
 
     async def get_metadata(self, key: str) -> Optional[any]:

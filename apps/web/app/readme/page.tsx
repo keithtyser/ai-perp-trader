@@ -4,9 +4,17 @@ export default function ReadmePage() {
       <h1>Keith's Crypto Agent Dashboard</h1>
 
       <p>
-        This is a read-only dashboard for an autonomous trading agent. The agent
-        uses paper trading (PerpSim) by default, with optional Hyperliquid testnet
-        support. It uses Qwen3-Max via OpenRouter to make trading decisions.
+        This is a fun project to see how good of a trading agent I can make! It uses
+        Deepseek v3.2 via OpenRouter to make trading decisions. All trading is paper trading
+        only - no real money involved. Inspired by{" "}
+        <a
+          href="https://nof1.ai/"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-blue-600 dark:text-blue-400"
+        >
+          Alpha Arena
+        </a>.
       </p>
 
       <h2>Pages</h2>
@@ -29,7 +37,7 @@ export default function ReadmePage() {
       <ul>
         <li>
           <strong>Worker:</strong> Python agent that observes markets, calls
-          Qwen3-Max, validates actions, and executes trades
+          Deepseek v3.2, validates actions, and executes trades
         </li>
         <li>
           <strong>API:</strong> FastAPI service with read-only endpoints
@@ -41,14 +49,6 @@ export default function ReadmePage() {
           <strong>Database:</strong> PostgreSQL/Supabase for state persistence
         </li>
       </ul>
-
-      <h2>Safety</h2>
-      <p>
-        By default, the agent runs in <strong>paper trading mode (PerpSim)</strong> with
-        no real money at risk. Optionally, it can connect to Hyperliquid{" "}
-        <strong>testnet</strong> using an agent wallet with no withdrawal permissions.
-        All trades are validated against platform constraints before execution.
-      </p>
 
       <h2>Links</h2>
       <ul>

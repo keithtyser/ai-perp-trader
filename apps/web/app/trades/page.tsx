@@ -29,11 +29,6 @@ export default function TradesPage() {
             COMPLETED TRADES
           </h2>
         </div>
-        <div>
-          <select className="bg-gray-900 text-white px-4 py-2 rounded border border-gray-700">
-            <option>ALL MODELS</option>
-          </select>
-        </div>
       </div>
 
       {error && (

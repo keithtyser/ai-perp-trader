@@ -22,6 +22,7 @@ from market import CoinbaseWebSocket
 from market.coinbase_rest import prefill_candle_buffers
 from indicators import get_recent_indicators, calculate_ema, calculate_macd, calculate_rsi, calculate_atr
 from position_manager import PositionManager
+from prompt_formatter import format_observation
 
 logging.basicConfig(
     level=logging.INFO,
@@ -253,6 +254,9 @@ class AgentWorker:
             obs = await self.build_observation()
             logger.info(f"observation: {obs.model_dump_json()}")
 
+            # Format observation as string for saving
+            observation_str = format_observation(obs)
+
             # 2. call llm
             action_dict = await self.llm_client.get_action(obs)
             logger.info(f"llm action: {action_dict}")
@@ -328,9 +332,9 @@ class AgentWorker:
                         self.last_error = ""
                         await self.db.set_metadata("last_error", "")
 
-            # 5. save chat note
+            # 5. save chat note with observation and action
             await self.db.insert_chat(
-                datetime.utcnow(), notes_for_audience, cycle_id
+                datetime.utcnow(), notes_for_audience, cycle_id, observation_str, action_dict
             )
 
             # 6. reconcile positions and equity

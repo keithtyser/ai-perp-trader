@@ -291,7 +291,7 @@ async def get_chat(
     """get model chat notes with pagination"""
     async with db_pool.acquire() as conn:
         rows = await conn.fetch(
-            "select id, ts, content, cycle_id from model_chat order by ts desc limit $1 offset $2",
+            "select id, ts, content, cycle_id, observation_prompt, action_response from model_chat order by ts desc limit $1 offset $2",
             limit,
             offset,
         )
@@ -301,6 +301,8 @@ async def get_chat(
                 "ts": r["ts"].isoformat(),
                 "content": r["content"],
                 "cycle_id": r["cycle_id"],
+                "observation_prompt": r["observation_prompt"],
+                "action_response": r["action_response"],
             }
             for r in rows
         ]
