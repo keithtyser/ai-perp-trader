@@ -1,6 +1,7 @@
 """Position manager to translate PositionDecisions into orders"""
 import logging
 import uuid
+# Fixed: Use agent's requested quantity, not account equity
 from typing import List, Dict, Optional
 from datetime import datetime
 from schemas import PositionDecision, Position
@@ -117,25 +118,34 @@ class PositionManager:
                         logger.warning(error_msg)
                         continue
 
-                    # Calculate target notional based on agent's requested leverage
-                    # But constrain it to available margin
-                    requested_notional = current_equity * decision.leverage
-                    max_notional = effective_available * decision.leverage
+                    # Use the agent's requested quantity directly
+                    target_quantity = decision.quantity
 
-                    # Use the minimum of what they requested vs what's actually available
-                    target_notional = min(requested_notional, max_notional)
+                    # Calculate the notional value and required margin
+                    requested_notional = target_quantity * current_price
+                    margin_required = requested_notional / decision.leverage
 
-                    if target_notional < effective_available:
-                        # Not enough margin even for 1x
-                        error_msg = (
-                            f"{coin}: Insufficient margin. Requested {decision.leverage}x "
-                            f"(${requested_notional:.0f}), available margin: ${effective_available:.2f}"
+                    logger.info(
+                        f"{coin}: Agent requested {decision.quantity:.4f} at {decision.leverage}x. "
+                        f"Notional: ${requested_notional:.2f}, Margin needed: ${margin_required:.2f}, "
+                        f"Available: ${effective_available:.2f}"
+                    )
+
+                    # Check if we have enough margin
+                    if margin_required > effective_available:
+                        # Scale down the position to fit available margin
+                        max_quantity = (effective_available * decision.leverage) / current_price
+                        target_quantity = max_quantity
+                        requested_notional = target_quantity * current_price
+                        margin_required = requested_notional / decision.leverage
+
+                        logger.warning(
+                            f"{coin}: Insufficient margin for full position. "
+                            f"Requested {decision.quantity:.4f} @ {decision.leverage}x (${requested_notional:.0f}), "
+                            f"scaling to {target_quantity:.4f} to fit ${effective_available:.2f} available margin"
                         )
-                        errors.append(error_msg)
-                        logger.warning(error_msg)
-                        continue
 
-                    target_quantity = target_notional / current_price
+                    target_notional = requested_notional
 
                     # Apply sign based on direction
                     target_qty = target_quantity if decision.signal == "buy" else -target_quantity

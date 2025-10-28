@@ -88,7 +88,7 @@ async def get_positions():
     """get current open positions"""
     async with db_pool.acquire() as conn:
         rows = await conn.fetch(
-            "select symbol, qty, avg_entry, unrealized_pl, exit_plan, updated_at from positions"
+            "select symbol, qty, avg_entry, unrealized_pl, exit_plan, leverage, updated_at from positions"
         )
         result = []
         for r in rows:
@@ -97,6 +97,7 @@ async def get_positions():
                 "qty": float(r["qty"]),
                 "avg_entry": float(r["avg_entry"]),
                 "unrealized_pl": float(r["unrealized_pl"]),
+                "leverage": float(r["leverage"]) if r["leverage"] is not None else 1.0,
                 "updated_at": r["updated_at"].isoformat(),
             }
             # Parse exit_plan from JSON if present

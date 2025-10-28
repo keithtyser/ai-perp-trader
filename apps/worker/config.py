@@ -4,7 +4,7 @@ from pydantic_settings import BaseSettings
 class Settings(BaseSettings):
     # openrouter
     openrouter_api_key: str
-    openrouter_model: str = "qwen/qwen3-max"
+    openrouter_model: str = "deepseek/deepseek-v3.2-exp"
     openrouter_base_url: str = "https://openrouter.ai/api/v1"
     openrouter_referer: str = ""
     openrouter_title: str = "ai-perp-trader"
@@ -30,7 +30,7 @@ class Settings(BaseSettings):
     # perpsim config
     sim_im: float = 0.05
     sim_mm: float = 0.03
-    sim_max_leverage: float = 20.0
+    sim_max_leverage: float = 100.0
     sim_slippage_bps: float = 1.0
     sim_fee_bps: float = 2.0
     sim_liq_penalty_bps: float = 5.0

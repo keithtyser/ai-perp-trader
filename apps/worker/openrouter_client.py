@@ -60,7 +60,7 @@ TRADING RULES:
    - "hold": Keep current position unchanged
    - "close": Close the entire position
 3. confidence: 0.0 to 1.0 representing conviction in this trade
-4. leverage: Must respect max_leverage from limits (typically 1-50x)
+4. leverage: Must respect max_leverage from limits
 5. risk_usd: Dollar amount you're willing to risk (distance to stop loss * quantity)
 6. CRITICAL: All prices MUST be rounded to the correct tick size for each asset:
    - BTC: Tick size 0.5 → Valid: 113000.0, 113000.5, 113001.0 | Invalid: 113000.71, 113000.25
@@ -72,19 +72,48 @@ TRADING RULES:
 8. Use technical indicators (EMA, MACD, RSI) and price action to inform decisions
 9. Consider funding rates for position duration decisions
 
-CRITICAL FEE AWARENESS - AVOID RAPID POSITION FLIPPING:
-⚠️ Each trade costs ~2bps in fees. Opening and immediately closing a position costs ~4bps (0.04%) in round-trip fees.
-⚠️ DO NOT close positions that have been held for less than 10 minutes unless:
-   - Stop loss is hit (price moved against you significantly)
-   - Invalidation condition is clearly met
-   - You see clear evidence of a major reversal that threatens substantial losses
+🚨 CRITICAL: EXIT PLAN DISCIPLINE - FOLLOW YOUR PLAN 🚨
 
-POSITION HOLDING GUIDELINES:
-- Check the "Holding Time" for each position before deciding to close
-- Positions held < 5 minutes: STRONGLY AVOID closing unless stop loss hit
-- Positions held 5-10 minutes: Consider holding unless clear invalidation
-- Positions held > 10 minutes: You have more flexibility to exit if thesis changes
-- Remember: Each unnecessary trade erodes your P&L by ~4bps. Let your winners run and only cut losers decisively.
+⚠️ YOU ARE REPEATEDLY ENTERING AND EXITING TRADES AFTER 1 MINUTE - THIS MUST STOP ⚠️
+
+MANDATORY EXIT PLAN DISCIPLINE:
+1. When you set an exit plan (profit_target, stop_loss, invalidation_condition), you MUST follow it
+2. DO NOT second-guess or change your mind after 1-2 minutes unless DRAMATIC circumstances occur
+3. Your exit plan is your commitment - honor it unless the market fundamentally changes
+4. Small price wiggles and noise are NOT valid reasons to abandon your plan
+
+WHAT CONSTITUTES "DRAMATIC CIRCUMSTANCES" FOR EARLY EXIT:
+✓ Stop loss is actually hit (price reaches your stop_loss level)
+✓ Your specific invalidation_condition is triggered (be honest - did it REALLY trigger?)
+✓ Major news event (exchange hack, regulatory announcement, etc.)
+✓ Clear technical breakdown (e.g., price crashes through multiple support levels in seconds)
+✗ Price moved 0.5% against you (this is NORMAL market noise)
+✗ "Market sentiment changed" after 90 seconds (this is noise, not analysis)
+✗ RSI changed by 5 points (indicators fluctuate - that's normal)
+✗ You're feeling uncertain (manage your emotions - trust your original analysis)
+
+FEE MATH YOU MUST UNDERSTAND:
+- Each trade costs ~2bps (0.02%) in fees
+- Entry + Exit = ~4bps (0.04%) round-trip cost
+- If you enter and exit after 1 minute with no price movement, you lose 4bps
+- This compounds: 10 unnecessary round-trips = -0.4% account value
+- Your performance stats show you're averaging 1.6 minute hold times - this is CHURNING
+
+POSITION HOLDING REQUIREMENTS:
+- Positions held < 5 minutes: EXIT ONLY IF STOP LOSS HIT - no other excuses
+- Positions held 5-10 minutes: Ask yourself "Is my invalidation condition ACTUALLY met, or am I just nervous?"
+- Positions held 10-30 minutes: You can reassess, but stick to your original targets unless clear reversal
+- Positions held > 30 minutes: Normal flexibility to adjust based on new information
+
+SELF-DISCIPLINE CHECKLIST BEFORE CLOSING A POSITION:
+❓ Has the position been open for at least 10 minutes? (NO → Don't close unless stop hit)
+❓ Is my stop_loss price actually reached? (YES → Close immediately)
+❓ Is my invalidation_condition specifically and clearly met? (Be brutally honest)
+❓ Has the price moved MORE than 2% against me beyond my stop? (Catastrophic failure)
+❓ If none of above: HOLD YOUR POSITION. Trust your original analysis.
+
+REMEMBER: Your job is to make DELIBERATE decisions based on your exit plan, not to react to every tick.
+Winners are made by letting good setups play out, not by panicking after 60 seconds.
 
 INVALIDATION CONDITIONS - Be specific:
 Good examples:

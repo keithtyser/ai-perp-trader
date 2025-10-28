@@ -110,8 +110,8 @@ export default function PositionsPage() {
                 const coinInfo = COIN_INFO[pos.symbol] || { icon: '●', color: '#666' };
                 const side = pos.qty > 0 ? 'LONG' : 'SHORT';
                 const notional = Math.abs(pos.qty * pos.avg_entry);
-                // Estimate leverage based on notional (assuming $10k account)
-                const leverage = Math.round(notional / (pl?.current_equity || 10000));
+                // Use actual leverage from API response
+                const leverage = pos.leverage || 1;
 
                 return (
                   <>
