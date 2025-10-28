@@ -17,6 +17,7 @@ MIGRATIONS = [
     "db/migrations/2025_10_26_add_leverage_to_positions.sql",
     "db/migrations/2025_10_27_add_position_entry_time.sql",
     "db/migrations/2025_10_27_add_observation_action_to_chat.sql",
+    "db/migrations/2025_10_28_add_agent_versions.sql",
 ]
 
 

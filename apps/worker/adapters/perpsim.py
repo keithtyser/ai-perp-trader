@@ -281,6 +281,11 @@ class PerpSimAdapter(BrokerAdapter):
         # calculate funding rate based on mode
         funding_rate = self._calculate_funding_rate(symbol, mark)
 
+        # For simulated trading, provide reasonable bid/ask quantities
+        # Use a heuristic: ~0.5% of typical position size (e.g., for BTC at $95k, ~10 BTC = $950k notional)
+        # This gives roughly $4,750 worth at each level, or about 0.05 BTC
+        typical_qty = 1000.0 / mark if mark > 0 else 1.0  # $1000 worth of the asset
+
         self.market_cache[symbol] = MarketInfo(
             symbol=symbol,
             best_bid=best_bid,
@@ -288,12 +293,12 @@ class PerpSimAdapter(BrokerAdapter):
             mark=mark,
             spread_bps=spread_bps,
             funding_8h_rate=funding_rate,
-            volume_24h=0.0,
-            bid_qty=0.0,
-            ask_qty=0.0,
+            volume_24h=0.0,  # Not tracked in simulation
+            bid_qty=typical_qty,  # Simulated liquidity
+            ask_qty=typical_qty,  # Simulated liquidity
         )
 
-        logger.debug(f"market data cached: {symbol} mark={mark:.2f} bid={best_bid:.2f} ask={best_ask:.2f}")
+        logger.info(f"market data cached: {symbol} mark={mark:.2f} bid={best_bid:.2f} ask={best_ask:.2f}")
 
         # try to fill resting limit orders
         self._try_fill_limits(symbol, best_bid, best_ask, ts)

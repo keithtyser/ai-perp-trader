@@ -55,6 +55,10 @@ class Settings(BaseSettings):
     data_feed: str = "coinbase"
     coinbase_ws_url: str = "wss://ws-feed.exchange.coinbase.com"
 
+    # agent version (semantic versioning)
+    agent_version: str = "v1.0.0"  # Update this before each deployment
+    version_description: str = "Initial production version"  # Describe what changed
+
     class Config:
         env_file = ".env"
 

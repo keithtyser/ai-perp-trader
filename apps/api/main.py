@@ -535,6 +535,104 @@ async def get_performance_stats():
         }
 
 
+@app.get("/leaderboard")
+async def get_leaderboard(min_hours: float = Query(0, ge=0)):
+    """
+    Get version leaderboard showing performance of all agent versions.
+
+    Args:
+        min_hours: Minimum duration in hours to include (default: 0, show all)
+
+    Returns:
+        List of versions sorted by performance
+    """
+    async with db_pool.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            select
+                v.version_tag,
+                v.description,
+                v.deployed_at,
+                v.retired_at,
+                case when v.retired_at is null then true else false end as is_active,
+                p.duration_days,
+                p.total_cycles,
+                p.total_return_pct,
+                p.daily_return_pct,
+                p.sharpe_ratio,
+                p.max_drawdown_pct,
+                p.total_trades,
+                p.trades_per_day,
+                p.win_rate,
+                p.profit_factor,
+                p.avg_hold_time_minutes,
+                p.realized_pnl,
+                p.total_fees,
+                p.pnl_per_day,
+                p.starting_equity,
+                p.ending_equity
+            from agent_versions v
+            left join version_performance p on v.id = p.version_id
+            where p.duration_days >= $1 / 24.0 or p.duration_days is null
+            order by p.sharpe_ratio desc nulls last, p.total_return_pct desc nulls last
+            """,
+            min_hours
+        )
+
+        return [
+            {
+                "version_tag": r["version_tag"],
+                "description": r["description"],
+                "deployed_at": r["deployed_at"].isoformat() if r["deployed_at"] else None,
+                "retired_at": r["retired_at"].isoformat() if r["retired_at"] else None,
+                "is_active": r["is_active"],
+                "duration_days": round(float(r["duration_days"]), 2) if r["duration_days"] else 0.0,
+                "total_cycles": r["total_cycles"] or 0,
+                "total_return_pct": round(float(r["total_return_pct"]), 2) if r["total_return_pct"] is not None else 0.0,
+                "daily_return_pct": round(float(r["daily_return_pct"]), 2) if r["daily_return_pct"] is not None else 0.0,
+                "sharpe_ratio": round(float(r["sharpe_ratio"]), 2) if r["sharpe_ratio"] is not None else 0.0,
+                "max_drawdown_pct": round(float(r["max_drawdown_pct"]), 2) if r["max_drawdown_pct"] is not None else 0.0,
+                "total_trades": r["total_trades"] or 0,
+                "trades_per_day": round(float(r["trades_per_day"]), 1) if r["trades_per_day"] is not None else 0.0,
+                "win_rate": round(float(r["win_rate"]), 1) if r["win_rate"] is not None else 0.0,
+                "profit_factor": round(float(r["profit_factor"]), 2) if r["profit_factor"] is not None else 0.0,
+                "avg_hold_time_minutes": round(float(r["avg_hold_time_minutes"]), 1) if r["avg_hold_time_minutes"] is not None else 0.0,
+                "realized_pnl": round(float(r["realized_pnl"]), 2) if r["realized_pnl"] is not None else 0.0,
+                "total_fees": round(float(r["total_fees"]), 2) if r["total_fees"] is not None else 0.0,
+                "pnl_per_day": round(float(r["pnl_per_day"]), 2) if r["pnl_per_day"] is not None else 0.0,
+                "starting_equity": round(float(r["starting_equity"]), 2) if r["starting_equity"] is not None else 0.0,
+                "ending_equity": round(float(r["ending_equity"]), 2) if r["ending_equity"] is not None else 0.0,
+            }
+            for r in rows
+        ]
+
+
+@app.get("/current-version")
+async def get_current_version():
+    """Get the currently active agent version"""
+    async with db_pool.acquire() as conn:
+        row = await conn.fetchrow(
+            """
+            select v.version_tag, v.description, v.deployed_at, va.started_at
+            from version_activity va
+            join agent_versions v on va.version_id = v.id
+            where va.ended_at is null
+            order by va.started_at desc
+            limit 1
+            """
+        )
+
+        if not row:
+            return None
+
+        return {
+            "version_tag": row["version_tag"],
+            "description": row["description"],
+            "deployed_at": row["deployed_at"].isoformat(),
+            "started_at": row["started_at"].isoformat(),
+        }
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)

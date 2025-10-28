@@ -125,7 +125,7 @@ class CoinbaseWebSocket:
                 self._update_candle_buffer(product_id, best_bid, best_ask, ts)
                 self._update_4h_candle_buffer(product_id, best_bid, best_ask, ts)
 
-                logger.debug(f"tick: {product_id} bid={best_bid} ask={best_ask}")
+                logger.info(f"tick: {product_id} bid={best_bid} ask={best_ask}")
             else:
                 logger.warning(f"invalid ticker data for {product_id}: bid={best_bid}, ask={best_ask}")
 
@@ -142,6 +142,7 @@ class CoinbaseWebSocket:
         """
         update 1m candle buffer.
         simplified: just store mid price as ohlc.
+        Note: Volume is not tracked in live updates (only from historical data)
         """
         mid = (bid + ask) / 2
 
@@ -152,14 +153,15 @@ class CoinbaseWebSocket:
 
         # check if we need to add a new candle
         if not buffer or buffer[-1][0] != int(ts_minute.timestamp() * 1000):
-            # new candle
+            # new candle - preserve volume from historical data if this is updating an existing candle
+            # otherwise set to 0 (live websocket doesn't provide volume)
             candle = [
                 int(ts_minute.timestamp() * 1000),  # timestamp in ms
                 mid,  # open
                 mid,  # high
                 mid,  # low
                 mid,  # close
-                0.0,  # volume (not tracked)
+                0.0,  # volume (not tracked in live feed)
             ]
             buffer.append(candle)
 
@@ -168,11 +170,12 @@ class CoinbaseWebSocket:
                 buffer.pop(0)
 
         else:
-            # update current candle
+            # update current candle (preserve existing volume)
             candle = buffer[-1]
             candle[2] = max(candle[2], mid)  # high
             candle[3] = min(candle[3], mid)  # low
             candle[4] = mid  # close
+            # volume (index 5) is preserved from historical data
 
         self.candle_buffer[symbol] = buffer
 
@@ -180,6 +183,7 @@ class CoinbaseWebSocket:
         """
         update 4h candle buffer.
         simplified: just store mid price as ohlc.
+        Note: Volume is preserved from historical data, not tracked in live updates
         """
         mid = (bid + ask) / 2
 
@@ -191,14 +195,14 @@ class CoinbaseWebSocket:
 
         # check if we need to add a new candle
         if not buffer or buffer[-1][0] != int(ts_4h.timestamp() * 1000):
-            # new candle
+            # new candle - volume will be 0 for live candles (only historical has volume)
             candle = [
                 int(ts_4h.timestamp() * 1000),  # timestamp in ms
                 mid,  # open
                 mid,  # high
                 mid,  # low
                 mid,  # close
-                0.0,  # volume (not tracked)
+                0.0,  # volume (not tracked in live feed, only from historical)
             ]
             buffer.append(candle)
 
@@ -207,11 +211,12 @@ class CoinbaseWebSocket:
                 buffer.pop(0)
 
         else:
-            # update current candle
+            # update current candle (preserve existing volume from historical data)
             candle = buffer[-1]
             candle[2] = max(candle[2], mid)  # high
             candle[3] = min(candle[3], mid)  # low
             candle[4] = mid  # close
+            # volume (index 5) is preserved from historical data
 
         self.candle_4h_buffer[symbol] = buffer
 

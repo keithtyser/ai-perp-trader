@@ -453,3 +453,310 @@ class Database:
                 max_dd = max(max_dd, drawdown)
 
             return round(max_dd, 2)
+
+    # ========== Version Management ==========
+
+    async def register_version(self, version_tag: str, description: str, config: dict) -> int:
+        """
+        Register a new agent version or get existing version ID.
+
+        Returns:
+            version_id (int): The ID of the version
+        """
+        async with self.pool.acquire() as conn:
+            # Check if version already exists
+            row = await conn.fetchrow(
+                "select id from agent_versions where version_tag = $1",
+                version_tag
+            )
+
+            if row:
+                logger.info(f"Version {version_tag} already exists with id={row['id']}")
+                return row['id']
+
+            # Create new version
+            row = await conn.fetchrow(
+                """
+                insert into agent_versions (version_tag, description, config, deployed_at)
+                values ($1, $2, $3, now())
+                returning id
+                """,
+                version_tag, description, json.dumps(config)
+            )
+
+            version_id = row['id']
+            logger.info(f"Registered new version {version_tag} with id={version_id}")
+            return version_id
+
+    async def start_version_activity(self, version_id: int) -> int:
+        """
+        Start a new activity period for a version.
+        Ends any currently active version.
+
+        Returns:
+            activity_id (int): The ID of the activity record
+        """
+        async with self.pool.acquire() as conn:
+            # End any currently active version
+            await conn.execute(
+                """
+                update version_activity
+                set ended_at = now()
+                where ended_at is null
+                """
+            )
+
+            # Start new activity
+            row = await conn.fetchrow(
+                """
+                insert into version_activity (version_id, started_at)
+                values ($1, now())
+                returning id
+                """,
+                version_id
+            )
+
+            activity_id = row['id']
+            logger.info(f"Started activity for version_id={version_id}, activity_id={activity_id}")
+            return activity_id
+
+    async def get_current_version_id(self) -> Optional[int]:
+        """Get the currently active version ID"""
+        async with self.pool.acquire() as conn:
+            row = await conn.fetchrow(
+                """
+                select version_id
+                from version_activity
+                where ended_at is null
+                order by started_at desc
+                limit 1
+                """
+            )
+            return row['version_id'] if row else None
+
+    async def end_current_version(self):
+        """End the currently active version and calculate final performance"""
+        version_id = await self.get_current_version_id()
+        if not version_id:
+            logger.warning("No active version to end")
+            return
+
+        async with self.pool.acquire() as conn:
+            # End the activity
+            await conn.execute(
+                """
+                update version_activity
+                set ended_at = now()
+                where version_id = $1 and ended_at is null
+                """,
+                version_id
+            )
+
+            # Mark version as retired
+            await conn.execute(
+                """
+                update agent_versions
+                set retired_at = now()
+                where id = $1
+                """,
+                version_id
+            )
+
+        # Calculate final performance
+        await self.calculate_version_performance(version_id)
+        logger.info(f"Ended version_id={version_id} and calculated final performance")
+
+    async def calculate_version_performance(self, version_id: int):
+        """
+        Calculate comprehensive performance metrics for a version.
+        """
+        async with self.pool.acquire() as conn:
+            # Get activity period
+            activity = await conn.fetchrow(
+                """
+                select min(started_at) as period_start, max(coalesce(ended_at, now())) as period_end
+                from version_activity
+                where version_id = $1
+                """,
+                version_id
+            )
+
+            if not activity:
+                logger.warning(f"No activity found for version_id={version_id}")
+                return
+
+            period_start = activity['period_start']
+            period_end = activity['period_end']
+            duration_seconds = (period_end - period_start).total_seconds()
+            duration_days = duration_seconds / 86400.0
+
+            # Get equity snapshots for this version
+            equity_rows = await conn.fetch(
+                """
+                select equity, ts
+                from equity_snapshots
+                where version_id = $1
+                order by ts
+                """,
+                version_id
+            )
+
+            if len(equity_rows) < 2:
+                logger.warning(f"Not enough equity data for version_id={version_id}")
+                return
+
+            starting_equity = float(equity_rows[0]['equity'])
+            ending_equity = float(equity_rows[-1]['equity'])
+            total_return_pct = ((ending_equity - starting_equity) / starting_equity * 100) if starting_equity > 0 else 0.0
+            daily_return_pct = (total_return_pct / duration_days) if duration_days > 0 else 0.0
+
+            # Calculate performance metrics
+            perf_metrics = await self.calculate_performance_metrics()
+            sharpe_30d = await self.calculate_sharpe_ratio(days=30)
+            max_dd = await self.calculate_max_drawdown()
+
+            # Get trade statistics
+            trades = await conn.fetch(
+                "select * from trades where version_id = $1 order by ts",
+                version_id
+            )
+
+            total_trades = len(trades)
+            trades_per_day = (total_trades / duration_days) if duration_days > 0 else 0.0
+
+            # Get fees and PnL
+            fees = await conn.fetchval(
+                "select coalesce(sum(fee), 0) from trades where version_id = $1",
+                version_id
+            )
+
+            realized_pnl = ending_equity - starting_equity
+            pnl_per_day = (realized_pnl / duration_days) if duration_days > 0 else 0.0
+
+            # Count decision cycles (chat messages)
+            total_cycles = await conn.fetchval(
+                "select count(*) from model_chat where version_id = $1",
+                version_id
+            )
+
+            # Upsert performance record
+            await conn.execute(
+                """
+                insert into version_performance (
+                    version_id, period_start, period_end,
+                    duration_days, total_cycles,
+                    total_return_pct, daily_return_pct, sharpe_ratio, max_drawdown_pct,
+                    total_trades, trades_per_day, win_rate, profit_factor, avg_hold_time_minutes,
+                    realized_pnl, total_fees, pnl_per_day, total_volume,
+                    starting_equity, ending_equity,
+                    calculated_at
+                )
+                values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, now())
+                on conflict (version_id) do update set
+                    period_end = $3,
+                    duration_days = $4,
+                    total_cycles = $5,
+                    total_return_pct = $6,
+                    daily_return_pct = $7,
+                    sharpe_ratio = $8,
+                    max_drawdown_pct = $9,
+                    total_trades = $10,
+                    trades_per_day = $11,
+                    win_rate = $12,
+                    profit_factor = $13,
+                    avg_hold_time_minutes = $14,
+                    realized_pnl = $15,
+                    total_fees = $16,
+                    pnl_per_day = $17,
+                    total_volume = $18,
+                    ending_equity = $20,
+                    calculated_at = now()
+                """,
+                version_id, period_start, period_end,
+                round(duration_days, 2), total_cycles or 0,
+                round(total_return_pct, 2), round(daily_return_pct, 2),
+                sharpe_30d, max_dd,
+                total_trades, round(trades_per_day, 1),
+                perf_metrics['win_rate'], perf_metrics['profit_factor'],
+                perf_metrics['avg_hold_time_minutes'],
+                round(realized_pnl, 2), round(float(fees), 2),
+                round(pnl_per_day, 2), perf_metrics['total_volume'],
+                round(starting_equity, 2), round(ending_equity, 2)
+            )
+
+            logger.info(f"Calculated performance for version_id={version_id}: "
+                       f"return={total_return_pct:.2f}%, sharpe={sharpe_30d:.2f}, "
+                       f"trades={total_trades}, duration={duration_days:.1f}d")
+
+    async def get_version_leaderboard(self, min_duration_hours: float = 0) -> List[Dict]:
+        """
+        Get leaderboard of all versions sorted by performance.
+
+        Args:
+            min_duration_hours: Minimum duration to include (default: 0, show all)
+
+        Returns:
+            List of version performance records
+        """
+        async with self.pool.acquire() as conn:
+            rows = await conn.fetch(
+                """
+                select
+                    v.version_tag,
+                    v.description,
+                    v.deployed_at,
+                    v.retired_at,
+                    case when v.retired_at is null then true else false end as is_active,
+                    p.duration_days,
+                    p.total_cycles,
+                    p.total_return_pct,
+                    p.daily_return_pct,
+                    p.sharpe_ratio,
+                    p.max_drawdown_pct,
+                    p.total_trades,
+                    p.trades_per_day,
+                    p.win_rate,
+                    p.profit_factor,
+                    p.avg_hold_time_minutes,
+                    p.realized_pnl,
+                    p.total_fees,
+                    p.pnl_per_day,
+                    p.starting_equity,
+                    p.ending_equity
+                from agent_versions v
+                left join version_performance p on v.id = p.version_id
+                where p.duration_days >= $1 / 24.0
+                order by p.sharpe_ratio desc nulls last, p.total_return_pct desc nulls last
+                """,
+                min_duration_hours
+            )
+
+            return [dict(r) for r in rows]
+
+    async def update_current_version_tags(self):
+        """
+        Tag all recent untagged records (trades, equity, chat) with current version_id.
+        Call this periodically or on each cycle.
+        """
+        version_id = await self.get_current_version_id()
+        if not version_id:
+            return
+
+        async with self.pool.acquire() as conn:
+            # Tag trades
+            await conn.execute(
+                "update trades set version_id = $1 where version_id is null",
+                version_id
+            )
+
+            # Tag equity snapshots
+            await conn.execute(
+                "update equity_snapshots set version_id = $1 where version_id is null",
+                version_id
+            )
+
+            # Tag chat messages
+            await conn.execute(
+                "update model_chat set version_id = $1 where version_id is null",
+                version_id
+            )

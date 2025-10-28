@@ -100,9 +100,10 @@ Technical indicators (EMA, MACD, RSI): Not yet available - insufficient candle d
 
 3-Period ATR: {round(ctx.atr_3, 3)} vs. 14-Period ATR: {round(ctx.atr_14, 3)}
 
-Current Volume: {round(ctx.current_volume, 3)} vs. Average Volume: {round(ctx.avg_volume, 3)}
-
 """
+            # Only show volume if it's available (> 0)
+            if ctx.avg_volume > 0:
+                prompt += f"Current Volume: {round(ctx.current_volume, 3)} vs. Average Volume: {round(ctx.avg_volume, 3)}\n\n"
             if len(ctx.macd) > 0:
                 macd_4h_formatted = [round(val, 3) for val in ctx.macd]
                 prompt += f"MACD indicators (4-hour): {macd_4h_formatted}\n\n"
@@ -112,18 +113,18 @@ Current Volume: {round(ctx.current_volume, 3)} vs. Average Volume: {round(ctx.av
                 prompt += f"RSI indicators (14-Period, 4-hour): {rsi_14_4h_formatted}\n\n"
 
         # Open interest and funding
-        prompt += f"""In addition, here is the latest {coin} open interest and funding rate for perps (the instrument you are trading):
+        prompt += f"""In addition, here is the latest {coin} funding rate for perps (the instrument you are trading):
 
 """
 
-        if market.open_interest is not None and market.open_interest_avg is not None:
-            prompt += f"Open Interest: Latest: {round(market.open_interest, 2)}, Average: {round(market.open_interest_avg, 2)}\n\n"
-        elif market.open_interest is not None:
-            prompt += f"Open Interest: Latest: {round(market.open_interest, 2)}\n\n"
-        else:
-            prompt += f"Open Interest: N/A\n\n"
+        # Only show open interest if available (real perp exchanges)
+        if market.open_interest is not None:
+            if market.open_interest_avg is not None:
+                prompt += f"Open Interest: Latest: {round(market.open_interest, 2)}, Average: {round(market.open_interest_avg, 2)}\n\n"
+            else:
+                prompt += f"Open Interest: Latest: {round(market.open_interest, 2)}\n\n"
 
-        prompt += f"Funding Rate: {market.funding_8h_rate}\n\n"
+        prompt += f"Funding Rate (8h): {market.funding_8h_rate}\n\n"
 
         prompt += f"Spread (bps): {market.spread_bps}\n"
         prompt += f"Realized Volatility (15m): {market.realized_vol_15m}\n\n"

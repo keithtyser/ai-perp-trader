@@ -194,6 +194,24 @@ class AgentWorker:
         await self.db.connect()
         logger.info("agent worker started")
 
+        # Register and activate this version
+        config_snapshot = {
+            "model": settings.openrouter_model,
+            "trading_backend": settings.trading_backend,
+            "symbols": settings.sim_symbols if settings.trading_backend == "perpsim" else "BTC-PERP,ETH-PERP",
+            "max_leverage": settings.max_leverage,
+            "cycle_interval": settings.cycle_interval_seconds,
+        }
+
+        version_id = await self.db.register_version(
+            version_tag=settings.agent_version,
+            description=settings.version_description,
+            config=config_snapshot
+        )
+        await self.db.start_version_activity(version_id)
+
+        logger.info(f"Running as version {settings.agent_version} (id={version_id})")
+
         # pre-fill historical candles and start coinbase ws if using perpsim
         if self.perpsim_symbols:
             logger.info(f"Pre-filling historical candles for {self.perpsim_symbols}...")
@@ -347,6 +365,15 @@ class AgentWorker:
             # 7. update scoreboard metadata
             await self.update_scoreboard()
 
+            # 8. update version tags for all records
+            await self.db.update_current_version_tags()
+
+            # 9. calculate current version performance (every 10 cycles)
+            if self.invocation_count % 10 == 0:
+                version_id = await self.db.get_current_version_id()
+                if version_id:
+                    await self.db.calculate_version_performance(version_id)
+
         except Exception as e:
             logger.error(f"cycle error: {e}", exc_info=True)
             self.last_error = str(e)
@@ -408,6 +435,7 @@ class AgentWorker:
         markets = []
 
         for mkt in market_state.markets:
+            logger.info(f"Building observation for {mkt.symbol}: mark={mkt.mark:.2f}, bid={mkt.best_bid:.2f}, ask={mkt.best_ask:.2f}")
             # get candles from coinbase ws if perpsim, otherwise from hyperliquid
             if self.coinbase_ws:
                 ohlcv_1m = self.coinbase_ws.get_candles(mkt.symbol)
@@ -466,9 +494,10 @@ class AgentWorker:
                         macd_4h = calculate_macd(close_prices_4h, 12, 26, 9)
                         rsi_14_4h = calculate_rsi(close_prices_4h, 14)
 
-                        # Volume stats
+                        # Volume stats - filter out zeros from live candles that don't have volume
+                        volumes_nonzero = [v for v in volumes_4h if v > 0]
                         current_volume = volumes_4h[-1] if volumes_4h else 0.0
-                        avg_volume = np.mean(volumes_4h) if volumes_4h else 0.0
+                        avg_volume = np.mean(volumes_nonzero) if volumes_nonzero else 0.0
 
                         four_hour_context = FourHourContext(
                             ema_20=ema_20_4h[-1] if len(ema_20_4h) > 0 else 0.0,
@@ -483,10 +512,10 @@ class AgentWorker:
                     except Exception as e:
                         logger.warning(f"Failed to calculate 4H indicators for {mkt.symbol}: {e}")
 
-            # Calculate open interest average (using a simple moving average of last values)
-            # For now, using placeholder since we don't have historical OI data
-            open_interest_latest = 0.0
-            open_interest_avg = 0.0
+            # Open interest: Only available for real perp exchanges, not Coinbase spot
+            # Set to None for Coinbase data to avoid misleading the LLM with zeros
+            open_interest_latest = None
+            open_interest_avg = None
 
             markets.append(MarketObservation(
                 symbol=mkt.symbol,

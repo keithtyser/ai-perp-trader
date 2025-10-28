@@ -8,6 +8,7 @@ const links = [
   { href: '/positions', label: 'Positions' },
   { href: '/trades', label: 'Trades' },
   { href: '/chat', label: 'Model Chat' },
+  { href: '/leaderboard', label: 'Leaderboard' },
   { href: '/readme', label: 'Readme' },
 ];
 
