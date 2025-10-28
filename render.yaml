@@ -1,7 +1,7 @@
 services:
   - type: pserv
     name: db
-    plan: professional
+    plan: Pro
     env: docker
     dockerfilePath: ./infra/Dockerfile.postgres
     envVars:
