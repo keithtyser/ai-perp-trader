@@ -23,7 +23,7 @@ services:
   - type: worker
     name: worker
     runtime: docker
-    plan: free
+    plan: starter
     dockerfilePath: ./apps/worker/Dockerfile
     dockerContext: ./apps/worker
     envVars:
