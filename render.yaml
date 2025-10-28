@@ -2,13 +2,13 @@ databases:
   - name: db
     databaseName: ai_perp_trader
     user: agent
-    plan: pro-4gb
+    plan: basic-256mb
 
 services:
   - type: web
     name: api
     runtime: docker
-    plan: pro
+    plan: free
     dockerfilePath: ./apps/api/Dockerfile
     dockerContext: ./apps/api
     envVars:
@@ -23,7 +23,7 @@ services:
   - type: worker
     name: worker
     runtime: docker
-    plan: pro
+    plan: free
     dockerfilePath: ./apps/worker/Dockerfile
     dockerContext: ./apps/worker
     envVars:
@@ -77,7 +77,7 @@ services:
   - type: web
     name: web
     runtime: docker
-    plan: pro
+    plan: free
     dockerfilePath: ./apps/web/Dockerfile
     dockerContext: ./apps/web
     envVars:
