@@ -298,7 +298,7 @@ class PerpSimAdapter(BrokerAdapter):
             ask_qty=typical_qty,  # Simulated liquidity
         )
 
-        logger.info(f"market data cached: {symbol} mark={mark:.2f} bid={best_bid:.2f} ask={best_ask:.2f}")
+        logger.debug(f"market data cached: {symbol} mark={mark:.2f} bid={best_bid:.2f} ask={best_ask:.2f}")
 
         # try to fill resting limit orders
         self._try_fill_limits(symbol, best_bid, best_ask, ts)

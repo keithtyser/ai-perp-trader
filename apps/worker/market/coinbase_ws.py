@@ -143,7 +143,7 @@ class CoinbaseWebSocket:
                 self._update_candle_buffer(product_id, best_bid, best_ask, ts)
                 self._update_4h_candle_buffer(product_id, best_bid, best_ask, ts)
 
-                logger.info(f"tick: {product_id} bid={best_bid} ask={best_ask}")
+                logger.debug(f"tick: {product_id} bid={best_bid} ask={best_ask}")
             else:
                 logger.warning(f"invalid ticker data for {product_id}: bid={best_bid}, ask={best_ask}")
 

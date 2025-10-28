@@ -435,7 +435,7 @@ class AgentWorker:
         markets = []
 
         for mkt in market_state.markets:
-            logger.info(f"Building observation for {mkt.symbol}: mark={mkt.mark:.2f}, bid={mkt.best_bid:.2f}, ask={mkt.best_ask:.2f}")
+            logger.debug(f"Building observation for {mkt.symbol}: mark={mkt.mark:.2f}, bid={mkt.best_bid:.2f}, ask={mkt.best_ask:.2f}")
             # get candles from coinbase ws if perpsim, otherwise from hyperliquid
             if self.coinbase_ws:
                 ohlcv_1m = self.coinbase_ws.get_candles(mkt.symbol)
