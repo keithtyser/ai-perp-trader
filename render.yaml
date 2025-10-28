@@ -53,7 +53,7 @@ services:
       - key: CYCLE_INTERVAL_SECONDS
         value: 60
       - key: MAX_LEVERAGE
-        value: 20.0
+        value: 100.0
       - key: DATA_FEED
         value: coinbase
       - key: COINBASE_WS_URL
