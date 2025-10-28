@@ -1,26 +1,16 @@
-services:
-  - type: pserv
-    name: db
-    plan: Pro
-    env: docker
-    dockerfilePath: ./infra/Dockerfile.postgres
-    envVars:
-      - key: POSTGRES_DB
-        value: ai_perp_trader
-      - key: POSTGRES_USER
-        value: agent
-      - key: POSTGRES_PASSWORD
-        generateValue: true
-    disk:
-      name: postgres-data
-      mountPath: /var/lib/postgresql/data
-      sizeGB: 1
+databases:
+  - name: db
+    databaseName: ai_perp_trader
+    user: agent
+    plan: pro
 
+services:
   - type: web
     name: api
-    plan: free
-    env: docker
+    runtime: docker
+    plan: pro
     dockerfilePath: ./apps/api/Dockerfile
+    dockerContext: ./apps/api
     envVars:
       - key: DATABASE_URL
         fromDatabase:
@@ -32,9 +22,10 @@ services:
 
   - type: worker
     name: worker
-    plan: free
-    env: docker
+    runtime: docker
+    plan: pro
     dockerfilePath: ./apps/worker/Dockerfile
+    dockerContext: ./apps/worker
     envVars:
       - key: DATABASE_URL
         fromDatabase:
@@ -44,26 +35,54 @@ services:
         sync: false
       - key: OPENROUTER_MODEL
         value: deepseek/deepseek-v3.2-exp
+      - key: OPENROUTER_BASE_URL
+        value: https://openrouter.ai/api/v1
+      - key: OPENROUTER_REFERER
+        value: ""
+      - key: OPENROUTER_TITLE
+        value: ai-perp-trader
       - key: TRADING_BACKEND
         value: perpsim
+      - key: SIM_IM
+        value: "0.05"
+      - key: SIM_MM
+        value: "0.03"
       - key: SIM_MAX_LEVERAGE
-        value: 100.0
+        value: "100.0"
+      - key: SIM_SLIPPAGE_BPS
+        value: "1.0"
+      - key: SIM_FEE_BPS
+        value: "2.0"
+      - key: SIM_LIQ_PENALTY_BPS
+        value: "5.0"
+      - key: SIM_FUNDING_MODE
+        value: A
       - key: SIM_SYMBOLS
         value: BTC-USD,ETH-USD,SOL-USD,DOGE-USD,XRP-USD
-      - key: CYCLE_INTERVAL_SECONDS
-        value: 60
-      - key: MAX_LEVERAGE
-        value: 100.0
+      - key: SIM_TICK_SIZE
+        value: "0.5"
       - key: DATA_FEED
         value: coinbase
       - key: COINBASE_WS_URL
         value: wss://ws-feed.exchange.coinbase.com
+      - key: CYCLE_INTERVAL_SECONDS
+        value: "60"
+      - key: MIN_NOTIONAL
+        value: "5.0"
+      - key: MAX_LEVERAGE
+        value: "100.0"
+      - key: DRY_RUN
+        value: "false"
 
   - type: web
     name: web
-    plan: free
-    env: docker
+    runtime: docker
+    plan: pro
     dockerfilePath: ./apps/web/Dockerfile
+    dockerContext: ./apps/web
     envVars:
       - key: NEXT_PUBLIC_API_BASE_URL
-        value: https://api.onrender.com
+        fromService:
+          name: api
+          type: web
+          property: host
