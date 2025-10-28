@@ -88,3 +88,5 @@ services:
           name: api
           type: web
           property: host
+      - key: PORT
+        value: "3000"
