@@ -18,6 +18,7 @@ services:
       - ../db/migrations/2025_10_26_add_leverage_to_positions.sql:/docker-entrypoint-initdb.d/07-leverage.sql
       - ../db/migrations/2025_10_27_add_position_entry_time.sql:/docker-entrypoint-initdb.d/08-position-entry-time.sql
       - ../db/migrations/2025_10_27_add_observation_action_to_chat.sql:/docker-entrypoint-initdb.d/09-observation-action.sql
+      - ../db/migrations/2025_10_28_add_agent_versions.sql:/docker-entrypoint-initdb.d/10-agent-versions.sql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U agent -d ai_perp_trader"]
       interval: 5s
