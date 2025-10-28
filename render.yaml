@@ -2,7 +2,7 @@ databases:
   - name: db
     databaseName: ai_perp_trader
     user: agent
-    plan: pro
+    plan: standard
 
 services:
   - type: web
