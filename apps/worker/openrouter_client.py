@@ -195,6 +195,17 @@ class OpenRouterClient:
         resp.raise_for_status()
         data = resp.json()
         content = data["choices"][0]["message"]["content"]
+
+        # Clean up markdown-wrapped JSON if present
+        content = content.strip()
+        if content.startswith("```json"):
+            content = content[7:]  # Remove ```json
+        elif content.startswith("```"):
+            content = content[3:]  # Remove ```
+        if content.endswith("```"):
+            content = content[:-3]  # Remove trailing ```
+        content = content.strip()
+
         return json.loads(content)
 
     async def close(self):
