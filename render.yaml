@@ -1,0 +1,69 @@
+services:
+  - type: pserv
+    name: db
+    plan: free
+    env: docker
+    dockerfilePath: ./infra/Dockerfile.postgres
+    envVars:
+      - key: POSTGRES_DB
+        value: ai_perp_trader
+      - key: POSTGRES_USER
+        value: agent
+      - key: POSTGRES_PASSWORD
+        generateValue: true
+    disk:
+      name: postgres-data
+      mountPath: /var/lib/postgresql/data
+      sizeGB: 1
+
+  - type: web
+    name: api
+    plan: free
+    env: docker
+    dockerfilePath: ./apps/api/Dockerfile
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: db
+          property: connectionString
+      - key: CORS_ORIGINS
+        value: https://trading.keithtyser.com
+    healthCheckPath: /health
+
+  - type: worker
+    name: worker
+    plan: free
+    env: docker
+    dockerfilePath: ./apps/worker/Dockerfile
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: db
+          property: connectionString
+      - key: OPENROUTER_API_KEY
+        sync: false
+      - key: OPENROUTER_MODEL
+        value: deepseek/deepseek-v3.2-exp
+      - key: TRADING_BACKEND
+        value: perpsim
+      - key: SIM_MAX_LEVERAGE
+        value: 100.0
+      - key: SIM_SYMBOLS
+        value: BTC-USD,ETH-USD,SOL-USD,DOGE-USD,XRP-USD
+      - key: CYCLE_INTERVAL_SECONDS
+        value: 60
+      - key: MAX_LEVERAGE
+        value: 20.0
+      - key: DATA_FEED
+        value: coinbase
+      - key: COINBASE_WS_URL
+        value: wss://ws-feed.exchange.coinbase.com
+
+  - type: web
+    name: web
+    plan: free
+    env: docker
+    dockerfilePath: ./apps/web/Dockerfile
+    envVars:
+      - key: NEXT_PUBLIC_API_BASE_URL
+        value: https://api.onrender.com
