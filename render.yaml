@@ -80,6 +80,8 @@ services:
     plan: free
     dockerfilePath: ./apps/web/Dockerfile
     dockerContext: ./apps/web
+    domains:
+      - trading.keithtyser.com
     envVars:
       - key: NEXT_PUBLIC_API_BASE_URL
         fromService:
