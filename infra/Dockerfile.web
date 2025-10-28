@@ -2,10 +2,14 @@ FROM node:20-alpine AS builder
 
 WORKDIR /app
 
+# Copy package files first for better layer caching
 COPY package.json package-lock.json* ./
 RUN npm install
 
+# Copy ALL source files (including lib, app, components, etc.)
 COPY . .
+
+# Build the Next.js app
 RUN npm run build
 
 FROM node:20-alpine
