@@ -278,7 +278,7 @@ export default function LeaderboardPage() {
             <span className="font-medium text-gray-900 dark:text-white">Daily Return:</span> Average return per day (for fair comparison)
           </div>
           <div>
-            <span className="font-medium text-gray-900 dark:text-white">Sharpe Ratio:</span> Risk-adjusted performance (>2.0 = excellent, 1-2 = good)
+            <span className="font-medium text-gray-900 dark:text-white">Sharpe Ratio:</span> Risk-adjusted performance (&gt;2.0 = excellent, 1-2 = good)
           </div>
           <div>
             <span className="font-medium text-gray-900 dark:text-white">Max DD:</span> Worst peak-to-trough decline
@@ -287,7 +287,7 @@ export default function LeaderboardPage() {
             <span className="font-medium text-gray-900 dark:text-white">Win Rate:</span> Percentage of profitable trades
           </div>
           <div>
-            <span className="font-medium text-gray-900 dark:text-white">Profit Factor:</span> Avg win / Avg loss (>2.0 = excellent)
+            <span className="font-medium text-gray-900 dark:text-white">Profit Factor:</span> Avg win / Avg loss (&gt;2.0 = excellent)
           </div>
         </div>
       </div>
