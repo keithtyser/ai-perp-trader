@@ -2,18 +2,11 @@ FROM node:20-alpine AS builder
 
 WORKDIR /app
 
-# Copy package files
-COPY package.json package-lock.json* ./
-RUN npm ci
+# Copy all files
+COPY . .
 
-# Copy config files
-COPY tsconfig.json next.config.js tailwind.config.ts postcss.config.js ./
-
-# Copy source code
-COPY app ./app
-COPY lib ./lib
-COPY components ./components
-COPY public ./public
+# Install dependencies
+RUN npm ci --legacy-peer-deps || npm install
 
 # Build the app
 RUN npm run build
