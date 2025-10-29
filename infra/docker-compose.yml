@@ -49,9 +49,9 @@ services:
     environment:
       DATABASE_URL: postgresql://agent:agent_password@db:5432/ai_perp_trader
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY}
-      OPENROUTER_MODEL: ${OPENROUTER_MODEL:-qwen/qwen3-max}
+      OPENROUTER_MODEL: deepseek/deepseek-v3.2-exp
       # trading backend: perpsim (paper) or hyperliquid (live)
-      TRADING_BACKEND: ${TRADING_BACKEND:-perpsim}
+      TRADING_BACKEND: perpsim
       # hyperliquid credentials (only needed if TRADING_BACKEND=hyperliquid)
       HL_API_KEY: ${HL_API_KEY:-}
       HL_API_SECRET: ${HL_API_SECRET:-}
@@ -84,6 +84,8 @@ services:
     build:
       context: ../apps/web
       dockerfile: ../../infra/Dockerfile.web
+      args:
+        NEXT_PUBLIC_API_BASE_URL: https://trade.keithtyser.com/api
     environment:
       # API will be accessed through /api/ path on same domain (proxied by nginx)
       NEXT_PUBLIC_API_BASE_URL: https://trade.keithtyser.com/api
