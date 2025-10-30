@@ -32,7 +32,7 @@ async def main():
         async with db.pool.acquire() as conn:
             versions = await conn.fetch(
                 """
-                SELECT id, version_tag, deployed_at, retired_at, version_description
+                SELECT id, version_tag, deployed_at, retired_at, description
                 FROM agent_versions
                 ORDER BY deployed_at DESC
                 """
@@ -50,8 +50,8 @@ async def main():
                 print(f"      Deployed: {v['deployed_at']}")
                 if v['retired_at']:
                     print(f"      Retired: {v['retired_at']}")
-                if v['version_description']:
-                    print(f"      Description: {v['version_description']}")
+                if v['description']:
+                    print(f"      Description: {v['description']}")
                 print()
 
             # Get version to delete
