@@ -37,7 +37,7 @@ async def main():
     print()
     print("Connecting to database...")
     db = Database(settings.database_url)
-    await db.start()
+    await db.connect()
 
     try:
         # Get current version info
