@@ -1,6 +1,9 @@
 # AI Perp Trader
 
-An autonomous LLM trading agent with **paper trading** (PerpSim) and optional Hyperliquid testnet support, powered by **Qwen3-Max** via **OpenRouter**. 
+An autonomous LLM trading agent with **paper trading** (PerpSim) and optional Hyperliquid testnet support, powered by **Qwen3-Max** via **OpenRouter**.
+
+**[Watch it trade live →](https://trade.keithtyser.com/)**
+
 ## Features
 
 - **Paper Trading (PerpSim)**: Realistic perpetual futures simulator with leverage up to 20x
