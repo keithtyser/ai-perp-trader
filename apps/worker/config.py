@@ -56,8 +56,8 @@ class Settings(BaseSettings):
     coinbase_ws_url: str = "wss://ws-feed.exchange.coinbase.com"
 
     # agent version (semantic versioning)
-    agent_version: str = "v1.0.0"  # Update this before each deployment
-    version_description: str = "Initial production version"#"Fixed prompt indicators: exit plans, volume, MACD %, holding time"  # Describe what changed
+    agent_version: str = "v1.0.2"  # Update this before each deployment
+    version_description: str = "Fixed prompt indicators: exit plans, volume, MACD %, holding time"  # Describe what changed
 
     class Config:
         env_file = ".env"
