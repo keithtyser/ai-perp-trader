@@ -48,6 +48,19 @@ async def shutdown():
         await db_pool.close()
 
 
+async def get_current_version_id() -> Optional[int]:
+    """Get the currently active version ID"""
+    async with db_pool.acquire() as conn:
+        row = await conn.fetchrow("""
+            SELECT version_id
+            FROM version_activity
+            WHERE ended_at IS NULL
+            ORDER BY started_at DESC
+            LIMIT 1
+        """)
+        return row['version_id'] if row else None
+
+
 @app.get("/health")
 async def health():
     """health check endpoint"""
@@ -56,7 +69,9 @@ async def health():
 
 @app.get("/equity-curve")
 async def get_equity_curve(limit: int = Query(500, ge=1, le=5000)):
-    """get equity curve snapshots"""
+    """get equity curve snapshots for current version only"""
+    version_id = await get_current_version_id()
+
     async with db_pool.acquire() as conn:
         rows = await conn.fetch(
             """
@@ -65,9 +80,10 @@ async def get_equity_curve(limit: int = Query(500, ge=1, le=5000)):
                    coalesce(fees, 0) as fees,
                    coalesce(funding, 0) as funding
             from equity_snapshots
-            order by ts desc limit $1
+            where version_id = $1 or $1 is null
+            order by ts desc limit $2
             """,
-            limit,
+            version_id, limit,
         )
         return [
             {
@@ -115,12 +131,18 @@ async def get_trades(
     limit: int = Query(100, ge=1, le=1000),
     offset: int = Query(0, ge=0),
 ):
-    """get individual trades with pagination"""
+    """get individual trades for current version only"""
+    version_id = await get_current_version_id()
+
     async with db_pool.acquire() as conn:
         rows = await conn.fetch(
-            "select id, ts, symbol, side, qty, price, fee, client_id from trades order by ts desc limit $1 offset $2",
-            limit,
-            offset,
+            """
+            select id, ts, symbol, side, qty, price, fee, client_id
+            from trades
+            where version_id = $1 or $1 is null
+            order by ts desc limit $2 offset $3
+            """,
+            version_id, limit, offset,
         )
         return [
             {
@@ -142,12 +164,19 @@ async def get_completed_trades(
     limit: int = Query(50, ge=1, le=500),
 ):
     """
-    Get completed round-trip trades with full P&L details.
+    Get completed round-trip trades with full P&L details for current version only.
     Each entry represents a fully closed position with entry/exit info.
     """
+    version_id = await get_current_version_id()
+
     async with db_pool.acquire() as conn:
         rows = await conn.fetch(
-            "select ts, symbol, side, qty, price, fee from trades order by ts"
+            """
+            select ts, symbol, side, qty, price, fee from trades
+            where version_id = $1 or $1 is null
+            order by ts
+            """,
+            version_id
         )
 
         positions = {}
@@ -317,12 +346,18 @@ async def get_chat(
     limit: int = Query(50, ge=1, le=500),
     offset: int = Query(0, ge=0),
 ):
-    """get model chat notes with pagination"""
+    """get model chat notes for current version only"""
+    version_id = await get_current_version_id()
+
     async with db_pool.acquire() as conn:
         rows = await conn.fetch(
-            "select id, ts, content, cycle_id, observation_prompt, action_response from model_chat order by ts desc limit $1 offset $2",
-            limit,
-            offset,
+            """
+            select id, ts, content, cycle_id, observation_prompt, action_response
+            from model_chat
+            where version_id = $1 or $1 is null
+            order by ts desc limit $2 offset $3
+            """,
+            version_id, limit, offset,
         )
         return [
             {
@@ -339,9 +374,11 @@ async def get_chat(
 
 @app.get("/metrics")
 async def get_metrics():
-    """get performance metrics summary"""
+    """get performance metrics summary for current version only"""
+    version_id = await get_current_version_id()
+
     async with db_pool.acquire() as conn:
-        # get metadata
+        # get metadata (already version-specific since it's reset per version)
         pnl_row = await conn.fetchrow("select value from metadata where key = 'pnl_all_time'")
         fees_row = await conn.fetchrow("select value from metadata where key = 'fees_paid_total'")
         dd_row = await conn.fetchrow("select value from metadata where key = 'max_dd'")
@@ -351,9 +388,14 @@ async def get_metrics():
         sim_funding_row = await conn.fetchrow("select value from metadata where key = 'sim_funding'")
         sim_realized_row = await conn.fetchrow("select value from metadata where key = 'sim_realized'")
 
-        # get current equity
+        # get current equity for current version only
         equity_row = await conn.fetchrow(
-            "select equity, unrealized_pl from equity_snapshots order by ts desc limit 1"
+            """
+            select equity, unrealized_pl from equity_snapshots
+            where version_id = $1 or $1 is null
+            order by ts desc limit 1
+            """,
+            version_id
         )
 
         pnl_all_time = float(json.loads(pnl_row["value"])) if pnl_row else 0.0
@@ -400,13 +442,20 @@ async def get_market_prices():
 @app.get("/performance-stats")
 async def get_performance_stats():
     """
-    Get comprehensive trading performance statistics.
+    Get comprehensive trading performance statistics for current version only.
     Includes win rate, profit factor, sharpe ratio, and more.
     """
+    version_id = await get_current_version_id()
+
     async with db_pool.acquire() as conn:
-        # Get all completed trades to calculate metrics
+        # Get all completed trades for current version to calculate metrics
         rows = await conn.fetch(
-            "select ts, symbol, side, qty, price, fee from trades order by ts"
+            """
+            select ts, symbol, side, qty, price, fee from trades
+            where version_id = $1 or $1 is null
+            order by ts
+            """,
+            version_id
         )
 
         positions = {}
@@ -513,9 +562,14 @@ async def get_performance_stats():
         avg_hold_time_minutes = sum(t["holding_time_seconds"] for t in completed) / len(completed) / 60.0
         total_volume = sum(t["entry_notional"] for t in completed)
 
-        # Get Sharpe and max DD from equity curve
+        # Get Sharpe and max DD from equity curve for current version
         equity_rows = await conn.fetch(
-            "select ts, equity from equity_snapshots where ts >= now() - interval '30 days' order by ts"
+            """
+            select ts, equity from equity_snapshots
+            where (version_id = $1 or $1 is null) and ts >= now() - interval '30 days'
+            order by ts
+            """,
+            version_id
         )
 
         sharpe_30d = 0.0
@@ -535,8 +589,15 @@ async def get_performance_stats():
                 if std_return != 0:
                     sharpe_30d = (mean_return / std_return) * math.sqrt(1440 * 365)
 
-        # Calculate max drawdown
-        all_equity_rows = await conn.fetch("select equity from equity_snapshots order by ts")
+        # Calculate max drawdown for current version
+        all_equity_rows = await conn.fetch(
+            """
+            select equity from equity_snapshots
+            where version_id = $1 or $1 is null
+            order by ts
+            """,
+            version_id
+        )
         max_dd = 0.0
         if len(all_equity_rows) >= 2:
             equities = [float(r["equity"]) for r in all_equity_rows]
