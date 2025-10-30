@@ -768,3 +768,46 @@ class Database:
                 "update model_chat set version_id = $1 where version_id is null",
                 version_id
             )
+
+    async def prepare_for_new_version(self):
+        """
+        Prepare the database for a new version deployment.
+        This should be called BEFORE deploying a new version.
+
+        Actions:
+        1. End current version and calculate final performance
+        2. Reset account state (positions, metadata)
+        3. Preserve all historical data for leaderboard
+        """
+        logger.info("Preparing database for new version deployment...")
+
+        # End current version
+        await self.end_current_version()
+
+        async with self.pool.acquire() as conn:
+            # Clear current positions (new version starts fresh)
+            await conn.execute("DELETE FROM positions")
+            logger.info("Cleared current positions")
+
+            # Clear account state metadata (but preserve version performance data)
+            await conn.execute("""
+                DELETE FROM metadata WHERE key IN (
+                    'pnl_all_time',
+                    'fees_paid_total',
+                    'max_dd',
+                    'sim_fees',
+                    'sim_funding',
+                    'sim_realized',
+                    'last_error'
+                )
+            """)
+            logger.info("Cleared account state metadata")
+
+            # Clear exit plans (new version will create fresh ones)
+            await conn.execute("DELETE FROM metadata WHERE key LIKE 'exit_plan_%'")
+            logger.info("Cleared exit plans")
+
+            # Note: We keep trades, equity_snapshots, and model_chat with their version_id
+            # This preserves historical data for the leaderboard
+
+        logger.info("Database prepared for new version. Deploy new version now.")
