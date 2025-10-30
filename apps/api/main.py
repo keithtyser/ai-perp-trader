@@ -292,9 +292,9 @@ async def get_pl():
         fees_row = await conn.fetchrow("select value from metadata where key = 'fees_paid_total'")
         dd_row = await conn.fetchrow("select value from metadata where key = 'max_dd'")
 
-        # get current equity and unrealized
+        # get current equity, cash (available cash), and unrealized
         equity_row = await conn.fetchrow(
-            "select equity, unrealized_pl from equity_snapshots order by ts desc limit 1"
+            "select equity, cash, unrealized_pl from equity_snapshots order by ts desc limit 1"
         )
 
         pnl_all_time = float(json.loads(pnl_row["value"])) if pnl_row else 0.0
@@ -303,33 +303,9 @@ async def get_pl():
         current_equity = float(equity_row["equity"]) if equity_row else 0.0
         unrealized_pl = float(equity_row["unrealized_pl"]) if equity_row else 0.0
 
-        # Calculate available cash (same logic as worker)
-        # Get current positions to calculate used margin
-        positions_rows = await conn.fetch(
-            "select symbol, qty, avg_entry, leverage from positions"
-        )
-
-        # Get current market prices
-        prices_rows = await conn.fetch("select symbol, price from market_prices")
-        prices = {r["symbol"]: float(r["price"]) for r in prices_rows}
-
-        # Calculate used margin: sum of (notional / leverage) for each position
-        used_margin = 0.0
-        for pos in positions_rows:
-            symbol = pos["symbol"]
-            qty = float(pos["qty"])
-            avg_entry = float(pos["avg_entry"])
-            leverage = float(pos["leverage"]) if pos["leverage"] else 1.0
-
-            # Use current market price if available, otherwise use avg_entry
-            current_price = prices.get(symbol, avg_entry)
-            notional = abs(qty) * current_price
-
-            if leverage > 0:
-                used_margin += notional / leverage
-
-        # Available cash = equity - used_margin
-        available_cash = max(0.0, current_equity - used_margin)
+        # Read available_cash directly from equity_snapshots.cash column
+        # (worker calculates this as equity - used_margin and stores it)
+        available_cash = float(equity_row["cash"]) if equity_row else 0.0
 
         return {
             "pnl_all_time": pnl_all_time,

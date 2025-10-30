@@ -219,11 +219,14 @@ class HyperliquidAdapter(BrokerAdapter):
             # update equity snapshot
             margin = state.get("marginSummary", {})
             equity = float(margin.get("accountValue", 0))
-            cash = float(margin.get("totalMarginUsed", 0))
+            total_margin_used = float(margin.get("totalMarginUsed", 0))
             unrealized_pl = float(margin.get("totalNtlPos", 0))
 
+            # Calculate available cash (equity - used_margin) - same as worker sends to agent
+            available_cash = max(0.0, equity - total_margin_used)
+
             ts = datetime.utcnow().replace(second=0, microsecond=0)
-            await self.db.insert_equity_snapshot(ts, equity, cash, unrealized_pl)
+            await self.db.insert_equity_snapshot(ts, equity, available_cash, unrealized_pl)
 
             logger.info(f"reconciled: equity={equity:.2f}")
         except Exception as e:

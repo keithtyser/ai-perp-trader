@@ -235,9 +235,18 @@ class PerpSimAdapter(BrokerAdapter):
 
             # insert equity snapshot
             account = await self.get_account_state()
+
+            # Calculate available cash (equity - used_margin) - same as worker sends to agent
+            used_margin = 0.0
+            for pos in account.positions:
+                if pos.leverage and pos.leverage > 0:
+                    used_margin += pos.notional / pos.leverage
+
+            available_cash = max(0.0, account.equity - used_margin)
+
             ts = datetime.utcnow().replace(second=0, microsecond=0)
             await self.db.insert_equity_snapshot(
-                ts, account.equity, account.cash, account.unrealized_pl
+                ts, account.equity, available_cash, account.unrealized_pl
             )
 
             # update metadata
