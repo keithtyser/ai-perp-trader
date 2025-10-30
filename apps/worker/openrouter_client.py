@@ -37,7 +37,7 @@ You MUST respond with valid JSON following this EXACT structure:
     "XRP": { ... }
     ... (include coins you want to trade from available: BTC, ETH, SOL, DOGE, XRP)
   },
-  "notes_for_audience": "<Detailed 200-500 char commentary explaining your current state, positions, and reasoning>"
+  "notes_for_audience": "<Detailed commentary explaining your current state, positions, and reasoning>"
 }
 
 AUDIENCE NOTES REQUIREMENTS:

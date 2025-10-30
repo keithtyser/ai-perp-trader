@@ -175,16 +175,26 @@ class Database:
                     pos["cost"] += qty * price
             return realized
 
-    async def get_completed_trades(self, limit: int = 100) -> List[Dict]:
+    async def get_completed_trades(self, limit: int = 100, version_id: int = None) -> List[Dict]:
         """
         Calculate completed trades with full details.
         Returns list of dicts with: symbol, direction, entry_time, exit_time,
         entry_price, exit_price, qty, entry_notional, exit_notional, holding_time_seconds, net_pnl
+
+        Args:
+            limit: Maximum number of trades to return
+            version_id: Optional version ID to filter trades
         """
         async with self.pool.acquire() as conn:
-            rows = await conn.fetch(
-                "select ts, symbol, side, qty, price, fee from trades order by ts"
-            )
+            if version_id is not None:
+                rows = await conn.fetch(
+                    "select ts, symbol, side, qty, price, fee from trades where version_id = $1 order by ts",
+                    version_id
+                )
+            else:
+                rows = await conn.fetch(
+                    "select ts, symbol, side, qty, price, fee from trades order by ts"
+                )
 
             positions = {}  # symbol -> {qty, cost, entry_time, entry_trades, fees}
             completed = []
@@ -304,9 +314,12 @@ class Database:
                     symbol, price,
                 )
 
-    async def calculate_performance_metrics(self) -> Dict:
+    async def calculate_performance_metrics(self, version_id: int = None) -> Dict:
         """
         Calculate comprehensive performance metrics from completed trades.
+
+        Args:
+            version_id: Optional version ID to filter trades
 
         Returns dict with:
         - win_rate: % of profitable trades
@@ -321,7 +334,7 @@ class Database:
         - avg_hold_time_minutes: average holding time across all trades
         - total_volume: total traded volume
         """
-        completed = await self.get_completed_trades(limit=10000)  # Get all trades
+        completed = await self.get_completed_trades(limit=10000, version_id=version_id)  # Get all trades
 
         if not completed:
             return {
@@ -610,18 +623,13 @@ class Database:
             total_return_pct = ((ending_equity - starting_equity) / starting_equity * 100) if starting_equity > 0 else 0.0
             daily_return_pct = (total_return_pct / duration_days) if duration_days > 0 else 0.0
 
-            # Calculate performance metrics
-            perf_metrics = await self.calculate_performance_metrics()
+            # Calculate performance metrics for this version (uses completed round-trip trades)
+            perf_metrics = await self.calculate_performance_metrics(version_id=version_id)
             sharpe_30d = await self.calculate_sharpe_ratio(days=30)
             max_dd = await self.calculate_max_drawdown()
 
-            # Get trade statistics
-            trades = await conn.fetch(
-                "select * from trades where version_id = $1 order by ts",
-                version_id
-            )
-
-            total_trades = len(trades)
+            # Get completed trade count (round-trip positions, not individual fills)
+            total_trades = perf_metrics['total_trades']
             trades_per_day = (total_trades / duration_days) if duration_days > 0 else 0.0
 
             # Get fees and PnL

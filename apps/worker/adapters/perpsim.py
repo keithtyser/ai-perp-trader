@@ -50,6 +50,7 @@ class SimPosition:
     realized_pl: float = 0.0
     last_funding_ts: Optional[datetime] = None
     leverage: float = 1.0  # leverage used when opening this position
+    entry_time: Optional[datetime] = None  # when the position was opened
 
 
 @dataclass
@@ -128,6 +129,7 @@ class PerpSimAdapter(BrokerAdapter):
                     unrealized_pl=unrealized,
                     notional=notional,
                     leverage=pos.leverage,
+                    entry_time=pos.entry_time,
                 )
             )
 
@@ -348,6 +350,7 @@ class PerpSimAdapter(BrokerAdapter):
             pos.qty = new_qty
             pos.avg_entry = fill_price
             pos.leverage = order.leverage  # store leverage from order
+            pos.entry_time = datetime.utcnow()  # track when position was opened
             realized_pnl = 0.0
 
         elif old_qty * qty_signed > 0:
@@ -379,6 +382,7 @@ class PerpSimAdapter(BrokerAdapter):
                 # reversed position
                 pos.avg_entry = fill_price
                 pos.leverage = order.leverage  # use new leverage for reversed position
+                pos.entry_time = datetime.utcnow()  # reset entry time for new direction
 
         # update cash: subtract fee and add realized P&L
         self.cash -= fee

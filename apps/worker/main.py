@@ -132,6 +132,16 @@ class AgentWorker:
         if isinstance(self.adapter, PerpSimAdapter):
             self.adapter.on_market_data(symbol, best_bid, best_ask, ts)
 
+    async def _refresh_candles_periodically(self):
+        """Background task to refresh 6h candles every 30 minutes to update volume data"""
+        while True:
+            try:
+                await asyncio.sleep(1800)  # 30 minutes
+                if self.coinbase_ws:
+                    await self.coinbase_ws.refresh_6h_candles()
+            except Exception as e:
+                logger.error(f"Error refreshing candles: {e}")
+
     def _normalize_action_client_ids(self, action_dict: dict) -> dict:
         """ensure client ids are unique and cancellations reference active ids"""
         self.pending_aliases = {}
@@ -238,6 +248,10 @@ class AgentWorker:
 
             asyncio.create_task(self.coinbase_ws.run_forever())
             logger.info("coinbase websocket started with historical data")
+
+            # Start background task to refresh 6h candles every 30 minutes for volume data
+            asyncio.create_task(self._refresh_candles_periodically())
+            logger.info("candle refresh task started (every 30 minutes)")
 
             # wait for initial market data to arrive
             logger.info("waiting for live market data...")
@@ -473,7 +487,7 @@ class AgentWorker:
                 except Exception as e:
                     logger.warning(f"Failed to calculate indicators for {mkt.symbol}: {e}")
 
-            # calculate 4-hour context indicators
+            # calculate 6-hour context indicators (Coinbase doesn't support 4h, so we use 6h)
             four_hour_context = None
             if self.coinbase_ws:
                 ohlcv_4h = self.coinbase_ws.get_4h_candles(mkt.symbol)
@@ -510,7 +524,7 @@ class AgentWorker:
                             rsi_14=rsi_14_4h[-10:] if len(rsi_14_4h) >= 10 else rsi_14_4h,
                         )
                     except Exception as e:
-                        logger.warning(f"Failed to calculate 4H indicators for {mkt.symbol}: {e}")
+                        logger.warning(f"Failed to calculate 6H indicators for {mkt.symbol}: {e}")
 
             # Open interest: Only available for real perp exchanges, not Coinbase spot
             # Set to None for Coinbase data to avoid misleading the LLM with zeros
@@ -568,6 +582,16 @@ class AgentWorker:
             if entry_time:
                 holding_time_minutes = int((datetime.utcnow() - entry_time).total_seconds() / 60)
 
+            # Get exit plan from metadata
+            exit_plan_dict = await self.db.get_metadata(f"exit_plan_{pos.symbol}")
+            exit_plan = None
+            if exit_plan_dict:
+                try:
+                    from schemas import ExitPlan
+                    exit_plan = ExitPlan(**exit_plan_dict)
+                except Exception as e:
+                    logger.warning(f"Failed to parse exit plan for {pos.symbol}: {e}")
+
             positions.append(Position(
                 symbol=pos.symbol,
                 qty=pos.qty,
@@ -578,6 +602,7 @@ class AgentWorker:
                 leverage=leverage,
                 entry_time=entry_time,
                 holding_time_minutes=holding_time_minutes,
+                exit_plan=exit_plan,
             ))
 
         # calculate total return percentage

@@ -5,6 +5,7 @@ abstract broker adapter interface
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Optional
+from datetime import datetime
 
 
 @dataclass
@@ -32,6 +33,7 @@ class PositionInfo:
     unrealized_pl: float
     notional: float  # abs(qty) * mark
     leverage: float = 1.0  # leverage used when opening this position
+    entry_time: Optional[datetime] = None  # when the position was opened
 
 
 @dataclass

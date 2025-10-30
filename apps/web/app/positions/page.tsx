@@ -22,7 +22,7 @@ export default function PositionsPage() {
   const [showExitPlan, setShowExitPlan] = useState<string | null>(null);
 
   const totalUnrealizedPnl = positions?.reduce((sum, pos) => sum + pos.unrealized_pl, 0) || 0;
-  const availableCash = pl?.current_equity ? pl.current_equity - (pl?.current_equity - totalUnrealizedPnl) : 0;
+  const availableCash = pl?.available_cash || 0;
 
   return (
     <div className="space-y-6">

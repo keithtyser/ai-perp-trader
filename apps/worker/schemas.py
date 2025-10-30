@@ -56,6 +56,7 @@ class Position(BaseModel):
     leverage: Optional[float] = None
     entry_time: Optional[datetime] = None
     holding_time_minutes: Optional[int] = None
+    exit_plan: Optional['ExitPlan'] = None
 
 
 class Account(BaseModel):
@@ -154,7 +155,7 @@ class PositionDecision(BaseModel):
 class PositionAction(BaseModel):
     """Position-based action format"""
     positions: Dict[str, PositionDecision]  # keyed by coin symbol
-    notes_for_audience: str = Field(max_length=500)
+    notes_for_audience: str = Field(max_length=1000)
 
 
 # internal trade record

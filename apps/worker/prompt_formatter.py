@@ -91,10 +91,10 @@ Technical indicators (EMA, MACD, RSI): Not yet available - insufficient candle d
                 rsi_14_formatted = [round(val, 3) for val in rsi_14_series]
                 prompt += f"RSI indicators (14-Period): {rsi_14_formatted}\n\n"
 
-        # 4-hour timeframe context
+        # 6-hour timeframe context (Note: Coinbase doesn't support 4h, so we use 6h)
         if market.four_hour_context:
             ctx = market.four_hour_context
-            prompt += f"""Longer-term context (4-hour timeframe):
+            prompt += f"""Longer-term context (6-hour timeframe):
 
 20-Period EMA: {round(ctx.ema_20, 3)} vs. 50-Period EMA: {round(ctx.ema_50, 3)}
 
@@ -105,12 +105,12 @@ Technical indicators (EMA, MACD, RSI): Not yet available - insufficient candle d
             if ctx.avg_volume > 0:
                 prompt += f"Current Volume: {round(ctx.current_volume, 3)} vs. Average Volume: {round(ctx.avg_volume, 3)}\n\n"
             if len(ctx.macd) > 0:
-                macd_4h_formatted = [round(val, 3) for val in ctx.macd]
-                prompt += f"MACD indicators (4-hour): {macd_4h_formatted}\n\n"
+                macd_6h_formatted = [round(val, 3) for val in ctx.macd]
+                prompt += f"MACD indicators (6-hour): {macd_6h_formatted}\n\n"
 
             if len(ctx.rsi_14) > 0:
-                rsi_14_4h_formatted = [round(val, 3) for val in ctx.rsi_14]
-                prompt += f"RSI indicators (14-Period, 4-hour): {rsi_14_4h_formatted}\n\n"
+                rsi_14_6h_formatted = [round(val, 3) for val in ctx.rsi_14]
+                prompt += f"RSI indicators (14-Period, 6-hour): {rsi_14_6h_formatted}\n\n"
 
         # Open interest and funding
         prompt += f"""In addition, here is the latest {coin} funding rate for perps (the instrument you are trading):
@@ -160,6 +160,15 @@ Total Fees Paid: {acc.fees_paid_total:.2f}
         for pos in acc.positions:
             holding_time_str = f"{pos.holding_time_minutes} minutes" if hasattr(pos, 'holding_time_minutes') and pos.holding_time_minutes is not None else "N/A"
 
+            # Format exit plan if available
+            exit_plan_str = ""
+            if hasattr(pos, 'exit_plan') and pos.exit_plan:
+                exit_plan_str = f"""Current Exit Plan:
+  - Profit Target: ${pos.exit_plan.profit_target if pos.exit_plan.profit_target else 'N/A'}
+  - Stop Loss: ${pos.exit_plan.stop_loss if pos.exit_plan.stop_loss else 'N/A'}
+  - Invalidation Condition: {pos.exit_plan.invalidation_condition}
+"""
+
             prompt += f"""Symbol: {pos.symbol.replace('-USD', '')}
 Quantity: {pos.qty}
 Entry Price: {pos.avg_entry}
@@ -168,7 +177,7 @@ Liquidation Price: {pos.liquidation_price if hasattr(pos, 'liquidation_price') e
 Unrealized P&L: {pos.unrealized_pnl}
 Leverage: {pos.leverage if hasattr(pos, 'leverage') else 'N/A'}
 Holding Time: {holding_time_str}
-
+{exit_plan_str}
 """
     else:
         prompt += "No open positions.\n\n"

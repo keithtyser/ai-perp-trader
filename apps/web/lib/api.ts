@@ -60,6 +60,7 @@ export interface PLSummary {
   max_drawdown: number;
   current_equity: number;
   unrealized_pl: number;
+  available_cash: number;
 }
 
 export interface ChatMessage {

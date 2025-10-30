@@ -38,7 +38,7 @@ def calculate_ema(prices: List[float], period: int) -> List[float]:
 
 def calculate_macd(prices: List[float], fast: int = 12, slow: int = 26, signal: int = 9) -> List[float]:
     """
-    Calculate MACD (Moving Average Convergence Divergence)
+    Calculate MACD (Moving Average Convergence Divergence) as percentage of price
 
     Args:
         prices: List of prices (oldest to newest)
@@ -47,7 +47,7 @@ def calculate_macd(prices: List[float], fast: int = 12, slow: int = 26, signal: 
         signal: Signal line period (default 9)
 
     Returns:
-        List of MACD line values (MACD line - Signal line)
+        List of MACD histogram values as percentage of price (comparable across assets)
     """
     if len(prices) < slow:
         return [0.0] * len(prices)
@@ -62,7 +62,14 @@ def calculate_macd(prices: List[float], fast: int = 12, slow: int = 26, signal: 
     signal_line = calculate_ema(macd_line, signal)
 
     # MACD histogram = MACD line - Signal line
-    macd_histogram = [macd_line[i] - signal_line[i] for i in range(len(prices))]
+    # Convert to percentage of price for comparability across assets
+    macd_histogram = []
+    for i in range(len(prices)):
+        if prices[i] != 0:
+            macd_pct = ((macd_line[i] - signal_line[i]) / prices[i]) * 100
+            macd_histogram.append(macd_pct)
+        else:
+            macd_histogram.append(0.0)
 
     return macd_histogram
 

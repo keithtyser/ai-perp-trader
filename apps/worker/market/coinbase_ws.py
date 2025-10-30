@@ -8,6 +8,7 @@ import logging
 from datetime import datetime, timezone
 from typing import List, Callable
 import websockets
+from .coinbase_rest import fetch_historical_candles
 
 logger = logging.getLogger(__name__)
 
@@ -253,6 +254,23 @@ class CoinbaseWebSocket:
             logger.warning(f"No ticks received for {time_since_last_tick:.0f}s, connection may be stale")
             return True
         return False
+
+    async def refresh_6h_candles(self):
+        """Periodically refresh 6h candles from REST API to get volume data"""
+        logger.info("Refreshing 6h candles from REST API to update volume data...")
+        for symbol in self.symbols:
+            try:
+                # Fetch latest 60 6-hour candles (will include volume)
+                candles = await fetch_historical_candles(
+                    symbol=symbol,
+                    granularity=21600,  # 6 hours
+                    num_candles=60,
+                )
+                if candles:
+                    self.candle_4h_buffer[symbol] = candles
+                    logger.debug(f"Refreshed {len(candles)} 6h candles for {symbol}")
+            except Exception as e:
+                logger.error(f"Failed to refresh 6h candles for {symbol}: {e}")
 
     async def close(self):
         """close websocket connection"""

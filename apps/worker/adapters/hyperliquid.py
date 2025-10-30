@@ -97,6 +97,10 @@ class HyperliquidAdapter(BrokerAdapter):
 
             # parse positions
             positions = []
+            # get all positions from database to fetch entry_time
+            db_positions = await self.db.get_positions()
+            db_entry_times = {p['symbol']: p.get('entry_time') for p in db_positions}
+
             for pos_data in positions_data:
                 pos = pos_data.get("position", {})
                 symbol = pos.get("coin", "")
@@ -106,6 +110,9 @@ class HyperliquidAdapter(BrokerAdapter):
                 mark_price = float(pos.get("positionValue", 0)) / abs(qty) if qty != 0 else 0
                 notional = abs(qty) * mark_price
 
+                # get entry_time from database
+                entry_time = db_entry_times.get(symbol)
+
                 positions.append(
                     PositionInfo(
                         symbol=symbol,
@@ -113,6 +120,7 @@ class HyperliquidAdapter(BrokerAdapter):
                         avg_entry=avg_entry,
                         unrealized_pl=upnl,
                         notional=notional,
+                        entry_time=entry_time,
                     )
                 )
 
