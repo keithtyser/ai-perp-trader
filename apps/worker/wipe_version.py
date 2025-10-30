@@ -126,6 +126,28 @@ async def main():
             )
             print(f"  ✓ Deleted version activity records: {activity_deleted}")
 
+            # Clear positions table (not version-specific, but needed for clean slate)
+            positions_deleted = await conn.execute("DELETE FROM positions")
+            print(f"  ✓ Cleared positions table: {positions_deleted}")
+
+            # Clear metadata (not version-specific, but needed for clean slate)
+            metadata_deleted = await conn.execute("""
+                DELETE FROM metadata WHERE key IN (
+                    'pnl_all_time',
+                    'fees_paid_total',
+                    'max_dd',
+                    'sim_fees',
+                    'sim_funding',
+                    'sim_realized',
+                    'last_error'
+                )
+            """)
+            print(f"  ✓ Cleared metadata: {metadata_deleted}")
+
+            # Clear exit plans
+            exit_plans_deleted = await conn.execute("DELETE FROM metadata WHERE key LIKE 'exit_plan_%'")
+            print(f"  ✓ Cleared exit plans: {exit_plans_deleted}")
+
             version_deleted = await conn.execute(
                 "DELETE FROM agent_versions WHERE id = $1",
                 version_id
