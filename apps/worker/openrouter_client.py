@@ -51,6 +51,16 @@ You MUST respond with valid JSON following this EXACT structure:
   "notes_for_audience": "<Detailed commentary explaining your current state, positions, and reasoning>"
 }
 
+JUSTIFICATION FIELD REQUIREMENTS:
+- When signal="buy" or signal="sell" (opening/adding): Explain WHY you're entering this position
+  Example: "RSI oversold at 28, price bouncing off support at $100k, MACD turning positive"
+- When signal="hold": Explain WHY you're keeping the position
+  Example: "Position thesis intact, price respecting support, target not yet reached"
+- When signal="close": Explain WHY you're exiting NOW
+  Example: "Stop loss hit at $99,500" or "Target reached at $105k" or "Invalidation: broke below EMA20 support"
+
+The justification should match your action. Don't describe market conditions when closing - describe your EXIT reason.
+
 AUDIENCE NOTES REQUIREMENTS:
 Your notes_for_audience MUST be detailed and informative, including:
 - Current account value and performance (% return)
