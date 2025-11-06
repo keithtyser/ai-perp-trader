@@ -12,7 +12,8 @@ from executor import Executor
 from reconciler import Reconciler
 from schemas import (
     Observation, MarketObservation, BookTop, Account, Position,
-    Limits, Scoreboard, Action, TechnicalIndicators, FourHourContext
+    Limits, Scoreboard, Action, TechnicalIndicators, FourHourContext,
+    CompletedTrade, MarketRegime
 )
 from adapters import (
     BrokerAdapter, HyperliquidAdapter, PerpSimAdapter, PerpSimConfig,
@@ -23,6 +24,7 @@ from market.coinbase_rest import prefill_candle_buffers
 from indicators import get_recent_indicators, calculate_ema, calculate_macd, calculate_rsi, calculate_atr
 from position_manager import PositionManager
 from prompt_formatter import format_observation
+from regime import RegimeAnalyzer
 
 logging.basicConfig(
     level=logging.INFO,
@@ -90,6 +92,9 @@ class AgentWorker:
 
         # position manager for translating decisions to orders
         self.position_manager = PositionManager(self.adapter, tick_sizes=tick_sizes)
+
+        # regime analyzer for market condition analysis
+        self.regime_analyzer = RegimeAnalyzer()
 
         logger.info(f"initialized with backend: {settings.trading_backend}")
 
@@ -318,11 +323,14 @@ class AgentWorker:
                     market_prices
                 )
 
-                # Store exit plans for each position decision
+                # Store exit plans and justifications for each position decision
                 for coin, decision in position_action.positions.items():
                     symbol = f"{coin}-USD"
                     exit_plan_dict = decision.exit_plan.model_dump() if decision.exit_plan else None
                     await self.db.set_metadata(f"exit_plan_{symbol}", exit_plan_dict)
+
+                    # Store justification for trade recording
+                    await self.db.set_metadata(f"justification_{symbol}", decision.justification)
 
                 if exec_errors:
                     self.last_error = "; ".join(exec_errors)
@@ -667,6 +675,29 @@ class AgentWorker:
         # update market prices in database
         await self.db.update_market_prices(market_prices)
 
+        # fetch recent completed trades (last 10)
+        recent_trades_raw = await self.db.get_completed_trades(limit=10)
+        recent_trades = [
+            CompletedTrade(
+                symbol=trade["symbol"],
+                direction=trade["direction"],
+                entry_price=trade["entry_price"],
+                exit_price=trade["exit_price"],
+                qty=trade["qty"],
+                net_pnl=trade["net_pnl"],
+                holding_time_seconds=trade["holding_time_seconds"],
+                entry_time=trade["entry_time"],
+                exit_time=trade["exit_time"],
+                entry_reason=trade.get("entry_reason"),
+                exit_reason=trade.get("exit_reason"),
+            )
+            for trade in recent_trades_raw
+        ]
+
+        # Analyze market regime
+        market_regime = self.regime_analyzer.analyze(markets)
+        logger.info(f"Market regime: {market_regime.summary}")
+
         return Observation(
             timestamp=datetime.utcnow().isoformat(),
             minutes_since_start=minutes_since_start,
@@ -676,6 +707,8 @@ class AgentWorker:
             limits=limits,
             scoreboard=scoreboard,
             last_error=self.last_error,
+            recent_trades=recent_trades if recent_trades else None,
+            market_regime=market_regime,
         )
 
     async def update_scoreboard(self):

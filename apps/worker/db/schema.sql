@@ -11,6 +11,8 @@ create table if not exists trades (
   price numeric not null,
   fee numeric not null default 0,
   client_id text unique,
+  entry_reason text,  -- justification for opening this position
+  exit_reason text,   -- justification for closing this position
   created_at timestamptz not null default now()
 );
 
@@ -23,6 +25,10 @@ create table if not exists positions (
   qty numeric not null,
   avg_entry numeric not null,
   unrealized_pl numeric not null default 0,
+  exit_plan jsonb,
+  leverage numeric default 1.0,
+  entry_time timestamptz,
+  entry_justification text,  -- why this position was opened
   updated_at timestamptz not null default now()
 );
 

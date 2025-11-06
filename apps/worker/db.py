@@ -26,20 +26,21 @@ class Database:
             logger.info("database pool closed")
 
     async def insert_trade(
-        self, symbol: str, side: str, qty: float, price: float, fee: float, client_id: str, ts: datetime
+        self, symbol: str, side: str, qty: float, price: float, fee: float, client_id: str, ts: datetime,
+        entry_reason: Optional[str] = None, exit_reason: Optional[str] = None
     ):
         """insert a filled trade"""
         async with self.pool.acquire() as conn:
             await conn.execute(
                 """
-                insert into trades (ts, symbol, side, qty, price, fee, client_id)
-                values ($1, $2, $3, $4, $5, $6, $7)
+                insert into trades (ts, symbol, side, qty, price, fee, client_id, entry_reason, exit_reason)
+                values ($1, $2, $3, $4, $5, $6, $7, $8, $9)
                 on conflict (client_id) do nothing
                 """,
-                ts, symbol, side, qty, price, fee, client_id,
+                ts, symbol, side, qty, price, fee, client_id, entry_reason, exit_reason,
             )
 
-    async def upsert_position(self, symbol: str, qty: float, avg_entry: float, unrealized_pl: float, exit_plan: Optional[Dict] = None, leverage: float = 1.0):
+    async def upsert_position(self, symbol: str, qty: float, avg_entry: float, unrealized_pl: float, exit_plan: Optional[Dict] = None, leverage: float = 1.0, entry_justification: Optional[str] = None):
         """update or insert position"""
         async with self.pool.acquire() as conn:
             if qty == 0:
@@ -50,26 +51,26 @@ class Database:
                 existing = await conn.fetchrow("select qty, entry_time from positions where symbol = $1", symbol)
 
                 if existing is None:
-                    # New position - set entry_time
+                    # New position - set entry_time and entry_justification
                     await conn.execute(
                         """
-                        insert into positions (symbol, qty, avg_entry, unrealized_pl, exit_plan, leverage, entry_time, updated_at)
-                        values ($1, $2, $3, $4, $5, $6, now(), now())
+                        insert into positions (symbol, qty, avg_entry, unrealized_pl, exit_plan, leverage, entry_time, entry_justification, updated_at)
+                        values ($1, $2, $3, $4, $5, $6, now(), $7, now())
                         """,
-                        symbol, qty, avg_entry, unrealized_pl, json.dumps(exit_plan) if exit_plan else None, leverage,
+                        symbol, qty, avg_entry, unrealized_pl, json.dumps(exit_plan) if exit_plan else None, leverage, entry_justification,
                     )
                 elif (existing['qty'] > 0 and qty < 0) or (existing['qty'] < 0 and qty > 0):
-                    # Direction change - reset entry_time
+                    # Direction change - reset entry_time and entry_justification
                     await conn.execute(
                         """
                         update positions
-                        set qty = $2, avg_entry = $3, unrealized_pl = $4, exit_plan = $5, leverage = $6, entry_time = now(), updated_at = now()
+                        set qty = $2, avg_entry = $3, unrealized_pl = $4, exit_plan = $5, leverage = $6, entry_time = now(), entry_justification = $7, updated_at = now()
                         where symbol = $1
                         """,
-                        symbol, qty, avg_entry, unrealized_pl, json.dumps(exit_plan) if exit_plan else None, leverage,
+                        symbol, qty, avg_entry, unrealized_pl, json.dumps(exit_plan) if exit_plan else None, leverage, entry_justification,
                     )
                 else:
-                    # Same direction - preserve entry_time
+                    # Same direction - preserve entry_time and entry_justification
                     await conn.execute(
                         """
                         update positions
@@ -188,15 +189,15 @@ class Database:
         async with self.pool.acquire() as conn:
             if version_id is not None:
                 rows = await conn.fetch(
-                    "select ts, symbol, side, qty, price, fee from trades where version_id = $1 order by ts",
+                    "select ts, symbol, side, qty, price, fee, entry_reason, exit_reason from trades where version_id = $1 order by ts",
                     version_id
                 )
             else:
                 rows = await conn.fetch(
-                    "select ts, symbol, side, qty, price, fee from trades order by ts"
+                    "select ts, symbol, side, qty, price, fee, entry_reason, exit_reason from trades order by ts"
                 )
 
-            positions = {}  # symbol -> {qty, cost, entry_time, entry_trades, fees}
+            positions = {}  # symbol -> {qty, cost, entry_time, entry_trades, fees, entry_reason}
             completed = []
 
             for r in rows:
@@ -206,6 +207,8 @@ class Database:
                 price = float(r["price"])
                 fee = float(r["fee"])
                 ts = r["ts"]
+                entry_reason = r.get("entry_reason")
+                exit_reason = r.get("exit_reason")
 
                 if symbol not in positions:
                     positions[symbol] = {
@@ -213,7 +216,8 @@ class Database:
                         "cost": 0.0,
                         "entry_time": None,
                         "entry_trades": [],
-                        "fees": 0.0
+                        "fees": 0.0,
+                        "entry_reason": None
                     }
 
                 pos = positions[symbol]
@@ -226,6 +230,7 @@ class Database:
                     pos["entry_time"] = ts
                     pos["entry_trades"] = [(price, abs(signed_qty), fee)]
                     pos["fees"] = fee
+                    pos["entry_reason"] = entry_reason  # Store entry reason
 
                 elif pos["qty"] * signed_qty > 0:
                     # Adding to position
@@ -233,6 +238,9 @@ class Database:
                     pos["cost"] += signed_qty * price
                     pos["entry_trades"].append((price, abs(signed_qty), fee))
                     pos["fees"] += fee
+                    # Keep the first entry reason if not set
+                    if not pos["entry_reason"] and entry_reason:
+                        pos["entry_reason"] = entry_reason
 
                 else:
                     # Closing or reversing position
@@ -272,7 +280,9 @@ class Database:
                         "entry_notional": entry_notional,
                         "exit_notional": exit_notional,
                         "holding_time_seconds": holding_time_seconds,
-                        "net_pnl": net_pnl
+                        "net_pnl": net_pnl,
+                        "entry_reason": pos["entry_reason"],
+                        "exit_reason": exit_reason
                     })
 
                     # Update position

@@ -98,6 +98,30 @@ class Scoreboard(BaseModel):
     performance: Optional[PerformanceMetrics] = None
 
 
+class CompletedTrade(BaseModel):
+    """A completed trade with entry and exit details"""
+    symbol: str
+    direction: str  # "long" or "short"
+    entry_price: float
+    exit_price: float
+    qty: float
+    net_pnl: float
+    holding_time_seconds: float
+    entry_time: datetime
+    exit_time: datetime
+    entry_reason: Optional[str] = None  # Justification for why the trade was entered
+    exit_reason: Optional[str] = None   # Justification for why the trade was closed
+
+
+class MarketRegime(BaseModel):
+    """Current market regime analysis"""
+    regime_type: str  # "trending_up", "trending_down", "ranging", "volatile_choppy"
+    volatility_level: str  # "low", "moderate", "high", "extreme"
+    trend_strength: float  # 0-100 score
+    risk_sentiment: str  # "risk_on", "neutral", "risk_off"
+    summary: str  # Human-readable summary
+
+
 class Observation(BaseModel):
     timestamp: str
     minutes_since_start: Optional[int] = 0
@@ -107,6 +131,8 @@ class Observation(BaseModel):
     limits: Limits
     scoreboard: Scoreboard
     last_error: str
+    recent_trades: Optional[List[CompletedTrade]] = None
+    market_regime: Optional[MarketRegime] = None
 
 
 # action returned by llm

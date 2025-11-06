@@ -397,6 +397,23 @@ class PerpSimAdapter(BrokerAdapter):
         self.cash -= fee
         self.cash += realized_pnl
 
+        # Determine entry/exit reason for trade
+        entry_reason = None
+        exit_reason = None
+
+        # Get justification from metadata
+        justification = await self.db.get_metadata(f"justification_{symbol}")
+
+        if old_qty == 0:
+            # Opening new position - this is an entry
+            entry_reason = justification
+        elif old_qty * qty_signed > 0:
+            # Adding to existing position - also an entry
+            entry_reason = justification
+        else:
+            # Closing or reducing position - this is an exit
+            exit_reason = justification
+
         # record trade in db
         await self.db.insert_trade(
             symbol=symbol,
@@ -406,6 +423,8 @@ class PerpSimAdapter(BrokerAdapter):
             fee=fee,
             client_id=order.client_id,
             ts=datetime.utcnow(),
+            entry_reason=entry_reason,
+            exit_reason=exit_reason,
         )
 
         logger.info(

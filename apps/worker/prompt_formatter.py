@@ -20,7 +20,28 @@ ALL OF THE PRICE OR SIGNAL DATA BELOW IS ORDERED: OLDEST → NEWEST
 
 Timeframes note: Unless stated otherwise in a section title, intraday series are provided at 1-minute intervals. If a coin uses a different interval, it is explicitly stated in that coin's section.
 
-CURRENT MARKET STATE FOR ALL COINS
+"""
+
+    # Add market regime context
+    if obs.market_regime:
+        regime = obs.market_regime
+        prompt += f"""🌍 CURRENT MARKET REGIME
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+{regime.summary}
+
+Regime Type: {regime.regime_type.replace('_', ' ').title()}
+Volatility Level: {regime.volatility_level.title()}
+Trend Strength: {regime.trend_strength:.1f}/100
+Risk Sentiment: {regime.risk_sentiment.replace('_', ' ').title()}
+
+CONTEXT: This regime analysis summarizes the current market environment across all assets.
+Consider this broader context when making your trading decisions. You may choose to adapt your
+approach based on these conditions, or you may identify opportunities that contradict the regime.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+"""
+
+    prompt += """CURRENT MARKET STATE FOR ALL COINS
 """
 
     # Format each market
@@ -182,6 +203,61 @@ Holding Time: {holding_time_str}
     else:
         prompt += "No open positions.\n\n"
 
+    # Format recent trades
+    if obs.recent_trades and len(obs.recent_trades) > 0:
+        prompt += """RECENT COMPLETED TRADES
+
+Below are your most recent completed trades for reference and analysis.
+
+"""
+        for i, trade in enumerate(obs.recent_trades, 1):
+            # Calculate R-multiple (profit relative to risk)
+            # Assuming stop was halfway between entry and exit for losses
+            price_move = abs(trade.exit_price - trade.entry_price)
+
+            # Determine win/loss
+            if trade.direction == "long":
+                is_win = trade.exit_price > trade.entry_price
+            else:  # short
+                is_win = trade.exit_price < trade.entry_price
+
+            result_label = "WIN" if is_win else "LOSS"
+
+            # Calculate return percentage
+            if trade.direction == "long":
+                return_pct = ((trade.exit_price - trade.entry_price) / trade.entry_price) * 100
+            else:  # short
+                return_pct = ((trade.entry_price - trade.exit_price) / trade.entry_price) * 100
+
+            # Format holding time
+            holding_minutes = trade.holding_time_seconds / 60
+            if holding_minutes < 60:
+                holding_str = f"{holding_minutes:.1f} minutes"
+            else:
+                holding_hours = holding_minutes / 60
+                holding_str = f"{holding_hours:.1f} hours"
+
+            # Format entry and exit times
+            try:
+                entry_str = trade.entry_time.strftime('%H:%M:%S')
+                exit_str = trade.exit_time.strftime('%H:%M:%S')
+            except:
+                entry_str = str(trade.entry_time)
+                exit_str = str(trade.exit_time)
+
+            prompt += f"""Trade #{i}: {trade.symbol.replace('-USD', '')} {trade.direction.upper()}
+  Side: {trade.direction}
+  Entry: ${trade.entry_price:.2f} at {entry_str}
+  Exit: ${trade.exit_price:.2f} at {exit_str}
+  Result: {result_label} - {return_pct:+.2f}% (${trade.net_pnl:+.2f} net after fees)
+  Holding Time: {holding_str}
+"""
+            if hasattr(trade, 'entry_reason') and trade.entry_reason:
+                prompt += f"  Entry Reason: {trade.entry_reason}\n"
+            if hasattr(trade, 'exit_reason') and trade.exit_reason:
+                prompt += f"  Exit Reason: {trade.exit_reason}\n"
+            prompt += "\n"
+
     # Add performance metrics
     if obs.scoreboard:
         prompt += f"""PERFORMANCE METRICS & TRADING STATISTICS
@@ -205,12 +281,6 @@ Largest Win: ${perf.largest_win:.2f}
 Largest Loss: ${perf.largest_loss:.2f}
 Average Hold Time: {perf.avg_hold_time_minutes:.1f} minutes
 Total Volume Traded: ${perf.total_volume:.2f}
-
-IMPORTANT: These statistics show your actual trading performance.
-- A win rate of 30-40% with profit factor > 2.0 is profitable (big wins, small losses)
-- A win rate of 50-60% with profit factor > 1.5 is good
-- Consecutive losses are NORMAL - don't panic and change strategy if your overall stats are good
-- If profit factor < 1.0, you're losing money on average - adjust stops/targets
 
 """
 
