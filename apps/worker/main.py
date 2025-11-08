@@ -679,8 +679,8 @@ class AgentWorker:
         # update market prices in database
         await self.db.update_market_prices(market_prices)
 
-        # fetch recent completed trades (last 10)
-        recent_trades_raw = await self.db.get_completed_trades(limit=10)
+        # fetch recent completed trades (last 10) for current version only
+        recent_trades_raw = await self.db.get_completed_trades(limit=10, version_id=self.version_id)
         recent_trades = [
             CompletedTrade(
                 symbol=trade["symbol"],
