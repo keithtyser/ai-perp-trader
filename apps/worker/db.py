@@ -396,26 +396,39 @@ class Database:
             "total_volume": round(total_volume, 2),
         }
 
-    async def calculate_sharpe_ratio(self, days: int = 30) -> float:
+    async def calculate_sharpe_ratio(self, days: int = 30, version_id: int = None) -> float:
         """
         Calculate Sharpe ratio from equity snapshots.
 
         Args:
             days: Number of days to look back
+            version_id: Optional version ID to filter equity snapshots
 
         Returns:
             Annualized Sharpe ratio
         """
         async with self.pool.acquire() as conn:
             # Get equity snapshots for the last N days
-            rows = await conn.fetch(
-                f"""
-                select ts, equity
-                from equity_snapshots
-                where ts >= now() - interval '{days} days'
-                order by ts
-                """
-            )
+            if version_id is not None:
+                rows = await conn.fetch(
+                    f"""
+                    select ts, equity
+                    from equity_snapshots
+                    where ts >= now() - interval '{days} days'
+                    and version_id = $1
+                    order by ts
+                    """,
+                    version_id
+                )
+            else:
+                rows = await conn.fetch(
+                    f"""
+                    select ts, equity
+                    from equity_snapshots
+                    where ts >= now() - interval '{days} days'
+                    order by ts
+                    """
+                )
 
             if len(rows) < 2:
                 return 0.0
@@ -444,21 +457,35 @@ class Database:
 
             return round(sharpe, 3)
 
-    async def calculate_max_drawdown(self) -> float:
+    async def calculate_max_drawdown(self, version_id: int = None) -> float:
         """
         Calculate maximum drawdown from equity curve.
+
+        Args:
+            version_id: Optional version ID to filter equity snapshots
 
         Returns:
             Maximum drawdown as a percentage
         """
         async with self.pool.acquire() as conn:
-            rows = await conn.fetch(
-                """
-                select equity
-                from equity_snapshots
-                order by ts
-                """
-            )
+            if version_id is not None:
+                rows = await conn.fetch(
+                    """
+                    select equity
+                    from equity_snapshots
+                    where version_id = $1
+                    order by ts
+                    """,
+                    version_id
+                )
+            else:
+                rows = await conn.fetch(
+                    """
+                    select equity
+                    from equity_snapshots
+                    order by ts
+                    """
+                )
 
             if len(rows) < 2:
                 return 0.0
@@ -635,8 +662,8 @@ class Database:
 
             # Calculate performance metrics for this version (uses completed round-trip trades)
             perf_metrics = await self.calculate_performance_metrics(version_id=version_id)
-            sharpe_30d = await self.calculate_sharpe_ratio(days=30)
-            max_dd = await self.calculate_max_drawdown()
+            sharpe_30d = await self.calculate_sharpe_ratio(days=30, version_id=version_id)
+            max_dd = await self.calculate_max_drawdown(version_id=version_id)
 
             # Get completed trade count (round-trip positions, not individual fills)
             total_trades = perf_metrics['total_trades']

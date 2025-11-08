@@ -656,10 +656,10 @@ class AgentWorker:
         # scoreboard with performance metrics
         pnl_all_time = account_state.realized_pl + account_state.unrealized_pl
 
-        # Calculate comprehensive performance metrics
-        perf_metrics_dict = await self.db.calculate_performance_metrics()
-        sharpe_30d = await self.db.calculate_sharpe_ratio(days=30)
-        max_dd = await self.db.calculate_max_drawdown()
+        # Calculate comprehensive performance metrics for current version only
+        perf_metrics_dict = await self.db.calculate_performance_metrics(version_id=self.version_id)
+        sharpe_30d = await self.db.calculate_sharpe_ratio(days=30, version_id=self.version_id)
+        max_dd = await self.db.calculate_max_drawdown(version_id=self.version_id)
 
         # Create PerformanceMetrics object
         from schemas import PerformanceMetrics
