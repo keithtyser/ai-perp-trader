@@ -218,14 +218,14 @@ class AgentWorker:
             "cycle_interval": settings.cycle_interval_seconds,
         }
 
-        version_id = await self.db.register_version(
+        self.version_id = await self.db.register_version(
             version_tag=settings.agent_version,
             description=settings.version_description,
             config=config_snapshot
         )
-        await self.db.start_version_activity(version_id)
+        await self.db.start_version_activity(self.version_id)
 
-        logger.info(f"Running as version {settings.agent_version} (id={version_id})")
+        logger.info(f"Running as version {settings.agent_version} (id={self.version_id})")
 
         # pre-fill historical candles and start coinbase ws if using perpsim
         if self.perpsim_symbols:
@@ -396,9 +396,8 @@ class AgentWorker:
 
             # 9. calculate current version performance (every 10 cycles)
             if self.invocation_count % 10 == 0:
-                version_id = await self.db.get_current_version_id()
-                if version_id:
-                    await self.db.calculate_version_performance(version_id)
+                if self.version_id:
+                    await self.db.calculate_version_performance(self.version_id)
 
         except Exception as e:
             logger.error(f"cycle error: {e}", exc_info=True)
