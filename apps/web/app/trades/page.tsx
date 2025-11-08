@@ -155,6 +155,23 @@ export default function TradesPage() {
                     </span>
                   </div>
                 </div>
+
+                {(trade.entry_reason || trade.exit_reason) && (
+                  <div className="mt-3 space-y-2 text-sm">
+                    {trade.entry_reason && (
+                      <div>
+                        <span className="text-gray-500 dark:text-gray-400 font-medium">Entry Reason: </span>
+                        <span className="text-gray-700 dark:text-gray-300">{trade.entry_reason}</span>
+                      </div>
+                    )}
+                    {trade.exit_reason && (
+                      <div>
+                        <span className="text-gray-500 dark:text-gray-400 font-medium">Exit Reason: </span>
+                        <span className="text-gray-700 dark:text-gray-300">{trade.exit_reason}</span>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             );
           })}

@@ -52,6 +52,8 @@ export interface CompletedTrade {
   gross_pnl: number;
   fees: number;
   net_pnl: number;
+  entry_reason?: string;
+  exit_reason?: string;
 }
 
 export interface PLSummary {

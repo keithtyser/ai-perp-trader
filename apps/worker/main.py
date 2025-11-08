@@ -316,21 +316,25 @@ class AgentWorker:
                 # Build market prices from observation
                 market_prices = {m.symbol: m.mid for m in obs.markets}
 
-                exec_errors = await self.position_manager.execute_position_decisions(
-                    position_action.positions,
-                    obs.account.positions,
-                    obs.account.equity,
-                    market_prices
-                )
-
-                # Store exit plans and justifications for each position decision
+                # Store exit plans and justifications BEFORE executing trades
+                # so they're available when trades are recorded
                 for coin, decision in position_action.positions.items():
                     symbol = f"{coin}-USD"
                     exit_plan_dict = decision.exit_plan.model_dump() if decision.exit_plan else None
                     await self.db.set_metadata(f"exit_plan_{symbol}", exit_plan_dict)
 
                     # Store justification for trade recording
-                    await self.db.set_metadata(f"justification_{symbol}", decision.justification)
+                    # Only store if signal is not "hold" - hold signals don't result in trades
+                    # and their justifications would be misleading if used for future trades
+                    if decision.signal != "hold":
+                        await self.db.set_metadata(f"justification_{symbol}", decision.justification)
+
+                exec_errors = await self.position_manager.execute_position_decisions(
+                    position_action.positions,
+                    obs.account.positions,
+                    obs.account.equity,
+                    market_prices
+                )
 
                 if exec_errors:
                     self.last_error = "; ".join(exec_errors)

@@ -237,10 +237,10 @@ Below are your most recent completed trades for reference and analysis.
                 holding_hours = holding_minutes / 60
                 holding_str = f"{holding_hours:.1f} hours"
 
-            # Format entry and exit times
+            # Format entry and exit times with date
             try:
-                entry_str = trade.entry_time.strftime('%H:%M:%S')
-                exit_str = trade.exit_time.strftime('%H:%M:%S')
+                entry_str = trade.entry_time.strftime('%Y-%m-%d %H:%M:%S')
+                exit_str = trade.exit_time.strftime('%Y-%m-%d %H:%M:%S')
             except:
                 entry_str = str(trade.entry_time)
                 exit_str = str(trade.exit_time)

@@ -172,7 +172,7 @@ async def get_completed_trades(
     async with db_pool.acquire() as conn:
         rows = await conn.fetch(
             """
-            select ts, symbol, side, qty, price, fee from trades
+            select ts, symbol, side, qty, price, fee, entry_reason, exit_reason from trades
             where version_id = $1 or $1 is null
             order by ts
             """,
@@ -189,13 +189,16 @@ async def get_completed_trades(
             price = float(r["price"])
             fee = float(r["fee"])
             ts = r["ts"]
+            entry_reason = r.get("entry_reason")
+            exit_reason = r.get("exit_reason")
 
             if symbol not in positions:
                 positions[symbol] = {
                     "qty": 0.0,
                     "cost": 0.0,
                     "entry_time": None,
-                    "fees": 0.0
+                    "fees": 0.0,
+                    "entry_reason": None
                 }
 
             pos = positions[symbol]
@@ -207,12 +210,16 @@ async def get_completed_trades(
                 pos["cost"] = signed_qty * price
                 pos["entry_time"] = ts
                 pos["fees"] = fee
+                pos["entry_reason"] = entry_reason
 
             elif pos["qty"] * signed_qty > 0:
                 # Adding to position
                 pos["qty"] += signed_qty
                 pos["cost"] += signed_qty * price
                 pos["fees"] += fee
+                # Keep the first entry reason if not set
+                if not pos["entry_reason"] and entry_reason:
+                    pos["entry_reason"] = entry_reason
 
             else:
                 # Closing position
@@ -257,7 +264,9 @@ async def get_completed_trades(
                     "holding_time_display": holding_time_display,
                     "gross_pnl": gross_pnl,
                     "fees": allocated_fees,
-                    "net_pnl": net_pnl
+                    "net_pnl": net_pnl,
+                    "entry_reason": pos["entry_reason"],
+                    "exit_reason": exit_reason
                 })
 
                 # Update position
@@ -267,6 +276,7 @@ async def get_completed_trades(
                     pos["cost"] = 0.0
                     pos["entry_time"] = None
                     pos["fees"] = 0.0
+                    pos["entry_reason"] = None
                 else:
                     if pos["qty"] * signed_qty > 0:
                         # Reversal
@@ -274,6 +284,7 @@ async def get_completed_trades(
                         pos["cost"] = pos["qty"] * price
                         pos["entry_time"] = ts
                         pos["fees"] = fee * (remaining_qty / abs(signed_qty))
+                        pos["entry_reason"] = entry_reason
                     else:
                         # Partial close
                         pos["cost"] *= (1 - close_ratio)
