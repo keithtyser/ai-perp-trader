@@ -56,8 +56,8 @@ class Settings(BaseSettings):
     coinbase_ws_url: str = "wss://ws-feed.exchange.coinbase.com"
 
     # agent version (semantic versioning)
-    agent_version: str = "v1.0.4"  # Update this before each deployment
-    version_description: str = "Reduce long bias; added recent trades, regime to prompt"  # Describe what changed
+    agent_version: str = "v1.0.6"  # Update this before each deployment
+    version_description: str = "Updated recent trades data in prompt to be accurate"  # Describe what changed
 
     class Config:
         env_file = ".env"
