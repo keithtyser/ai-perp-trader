@@ -1,20 +1,35 @@
 # AI Perp Trader
 
-An autonomous LLM trading agent with **paper trading** (PerpSim) and optional Hyperliquid testnet support, powered by **Qwen3-Max** via **OpenRouter**.
+An autonomous LLM trading agent with **paper trading** (PerpSim) and optional Hyperliquid testnet support, powered by **DeepSeek V3.2** via **OpenRouter**.
 
 **[Watch it trade live →](https://trade.keithtyser.com/)**
 
 ## Features
 
-- **Paper Trading (PerpSim)**: Realistic perpetual futures simulator with leverage up to 20x
+### Core Trading
+- **Paper Trading (PerpSim)**: Realistic perpetual futures simulator with leverage up to 100x (default 5x)
 - **Live Spot Data**: Coinbase WebSocket feed for BTC-USD, ETH-USD, SOL-USD, DOGE-USD, XRP-USD
 - **Margin & Liquidation**: Enforces initial/maintenance margin, auto-liquidates positions
 - **Funding Simulation**: Configurable funding rate models (0%, heuristic, or external)
-- **Autonomous LLM Planning**: Qwen3-Max makes all trading decisions via structured JSON
+- **Autonomous LLM Planning**: DeepSeek V3.2 makes all trading decisions via structured JSON
 - **Optional Hyperliquid Testnet**: Switch to live testnet mode with `TRADING_BACKEND=hyperliquid`
-- **Read-Only Dashboard**: Next.js app showing equity curve, positions, trades, fees, and funding
-- **FastAPI Backend**: Stable read-only endpoints for all data
-- **PostgreSQL**: Persistent storage for trades, positions, and equity snapshots
+
+### Intelligence & Analysis
+- **Market Regime Detection**: Automatically classifies markets as trending, ranging, or volatile
+- **Technical Indicators**: RSI(7), MACD, EMA20, realized volatility, 6-hour candle context
+- **Trade Reasoning**: Stores and displays entry/exit justifications for every trade
+- **Recent Trade History**: Agent sees its last 10 completed trades with P&L and reasons
+
+### Version Management
+- **Agent Version Tracking**: Tag each deployment with semantic versioning (v1.0.0, v1.1.0, etc.)
+- **Performance Isolation**: Each version tracks its own trades, equity curve, and metrics
+- **Leaderboard**: Compare Sharpe ratio, win rate, and returns across different versions
+- **A/B Testing**: Run multiple versions and see which strategy performs best
+
+### Dashboard & API
+- **Read-Only Dashboard**: Next.js app showing equity curve, positions, trades, performance metrics
+- **FastAPI Backend**: Stable read-only endpoints for all data with version filtering
+- **PostgreSQL**: Persistent storage for trades, positions, equity snapshots, and version metadata
 - **Docker Compose**: One command to run everything locally
 
 ## Architecture
@@ -42,7 +57,7 @@ An autonomous LLM trading agent with **paper trading** (PerpSim) and optional Hy
                     ↓                  ↓
             ┌───────────┐   ┌──────────────────┐
             │ OpenRouter│   │ Trading Backend: │
-            │ Qwen3-Max │   │  • PerpSim       │
+            │DeepSeek V3│   │  • PerpSim       │
             └───────────┘   │  • Hyperliquid   │
                             └──────────────────┘
 ```
@@ -123,15 +138,15 @@ All agent behavior is controlled via environment variables:
 
 ### Worker
 - `OPENROUTER_API_KEY` - OpenRouter API key
-- `OPENROUTER_MODEL` - Model name (default: qwen/qwen3-max)
+- `OPENROUTER_MODEL` - Model name (default: deepseek/deepseek-v3.2-exp)
 - `TRADING_BACKEND` - Backend to use: `perpsim` (default) or `hyperliquid`
 - `HL_API_KEY`, `HL_API_SECRET`, `HL_ACCOUNT` - Hyperliquid testnet credentials (only needed if TRADING_BACKEND=hyperliquid)
 - `HL_BASE_URL` - Testnet URL (default: https://api.hyperliquid-testnet.xyz)
 - `CYCLE_INTERVAL_SECONDS` - Decision cycle frequency (default: 60 = 1 minute)
 - `MIN_NOTIONAL` - Minimum order size in USD (default: 5.0)
-- `MAX_LEVERAGE` - Maximum allowed leverage (default: 20.0)
+- `MAX_LEVERAGE` - Maximum allowed leverage (default: 5.0, max: 100.0 for PerpSim)
 - `DRY_RUN` - If true, validate but don't execute trades (default: false)
-- `SIM_SYMBOLS` - Comma-separated list of symbols for PerpSim (default: BTC-USD,ETH-USD)
+- `SIM_SYMBOLS` - Comma-separated list of symbols for PerpSim (default: BTC-USD,ETH-USD,SOL-USD,DOGE-USD,XRP-USD)
 
 ### API
 - `DATABASE_URL` - PostgreSQL connection string
@@ -143,66 +158,174 @@ All agent behavior is controlled via environment variables:
 ## How It Works
 
 ### 1. Observation Phase
-Every cycle (default 1 minute), the worker builds an observation JSON containing:
-- Market data: mid price, spread, OHLCV candles, realized vol, funding rate
-- Account data: equity, cash, positions, unrealized P/L, fees paid
-- Limits: min notional, tick size, max leverage
-- Scoreboard: all-time P/L, Sharpe ratio, max drawdown
-- Last error: validation message from previous cycle (if any)
+Every cycle (default 1 minute), the worker builds a comprehensive observation containing:
+
+**Market Data** (per symbol):
+- Current price, spread, 24h volume
+- Technical indicators: RSI(7), MACD, EMA20
+- 1-minute OHLCV candles (last 60 minutes)
+- 6-hour context candles (last 60 candles = ~15 days)
+- Realized volatility, funding rate
+
+**Market Regime Analysis**:
+- Classification: Trending (bullish/bearish), Ranging, or Volatile
+- Volatility level and direction strength
+- Recommendations for the current regime
+
+**Account State**:
+- Equity, cash, positions with unrealized P/L
+- Current leverage, margin usage
+- Exit plans for each position (stop loss, take profit targets)
+
+**Performance Context**:
+- Recent 10 completed trades with entry/exit prices, P&L, hold time, and reasoning
+- Win rate, Sharpe ratio, max drawdown (for current version only)
+- Total trades, profit factor, average win/loss
+
+**Limits & Constraints**:
+- Min notional, tick size, max leverage per symbol
 
 ### 2. LLM Planning Phase
-The worker sends the observation to **Qwen3-Max via OpenRouter** with a strict system prompt. The LLM must return valid JSON with:
-- `decisions`: dict of symbol -> PositionDecision (signal: buy/sell/hold/close, leverage: 1-20x)
-- `notes_for_audience`: short text note (max 220 chars) explaining the decision
+The observation is sent to **DeepSeek V3.2 via OpenRouter** with a system prompt. The LLM analyzes:
+- Market conditions and regime
+- Current positions and their performance
+- Recent trade history and what worked/didn't work
+- Risk management based on current equity
+
+The LLM returns structured JSON with:
+- `positions`: dict of coin -> PositionDecision
+  - `signal`: buy/sell/hold/close
+  - `quantity`: position size
+  - `leverage`: 1-100x (default max 5x)
+  - `exit_plan`: stop loss and take profit levels
+  - `justification`: reasoning for this decision (max 500 chars)
+- `notes_for_audience`: human-readable summary (max 1000 chars)
 
 ### 3. Execution Phase
-The position manager translates high-level decisions into market orders:
-- Calculates target position sizes based on requested leverage and available margin
-- Places market orders to reach target positions (IOC time-in-force)
-- Handles insufficient margin by logging detailed error messages
-- All errors are visible to the agent in the next cycle's observation
+The position manager translates decisions into market orders:
+- Stores justifications and exit plans **before** execution
+- Calculates target position sizes based on leverage and margin
+- Places market orders with proper position sizing
+- Tags trades with `entry_reason` (for new positions) or `exit_reason` (for closes)
+- Logs detailed errors if insufficient margin or validation fails
 
 ### 4. Backend Execution
 Orders are executed via the selected trading backend:
-- **PerpSim** (default): Simulated fills with configurable slippage and fees
+- **PerpSim** (default): Simulated fills with realistic slippage (1 bps) and fees (2 bps)
 - **Hyperliquid**: Real testnet orders via signed REST API calls
 
 ### 5. Reconciliation Phase
-After a brief delay (for fills to settle), the reconciler:
-- Fetches updated account state
-- Updates positions table
-- Inserts equity snapshot (timestamped)
-- Writes model chat note to database
+After execution settles:
+- Fetches updated account state from adapter
+- Updates positions table with new quantities and P&L
+- Inserts equity snapshot tagged with current `version_id`
+- Records model chat note in database
+- Updates version performance metrics (every 10 cycles)
 
-### 6. Repeat
+### 6. Version Tracking
+Each deployment is tagged with:
+- `version_tag`: Semantic version (e.g., v1.0.6)
+- `description`: What changed in this version
+- `config`: Snapshot of model, leverage, symbols, etc.
+
+All trades, equity snapshots, and performance metrics are filtered by version_id, so each version has isolated statistics.
+
+### 7. Repeat
 The loop sleeps for `CYCLE_INTERVAL_SECONDS` and starts again.
 
 ## Costs
 
-- **OpenRouter**: ~$0.001–0.01 per cycle depending on model and context size (Qwen3-Max is cost-effective)
+- **OpenRouter**: ~$0.001–0.01 per cycle depending on model and context size (DeepSeek V3.2 is very cost-effective)
 - **PerpSim**: Free (paper trading simulator)
 - **Hyperliquid Testnet**: Free (testnet has no real fees)
+
+## Version Management
+
+The agent uses semantic versioning to track different deployments and strategies:
+
+### Deploying a New Version
+
+1. **Update version in config** (`apps/worker/config.py`):
+   ```python
+   agent_version: str = "v1.0.7"
+   version_description: str = "Increased leverage to 10x and added SOL"
+   ```
+
+2. **Rebuild and restart**:
+   ```bash
+   docker compose up -d --build worker
+   ```
+
+3. **View performance**:
+   - Each version gets its own equity curve, trade history, and performance metrics
+   - The leaderboard at `/leaderboard` shows all versions ranked by Sharpe ratio
+   - The dashboard filters to show only the currently active version
+
+### Benefits
+
+- **Isolated Testing**: Each version's performance is tracked separately
+- **A/B Comparison**: Deploy v1.1.0 with higher leverage, see if it beats v1.0.0
+- **Rollback Safety**: Can compare new strategy against historical baseline
+- **Clear Attribution**: Know exactly which prompt/model/config produced which results
 
 ## Customization
 
 ### Add More Markets
-Edit `apps/worker/main.py` in `build_observation()` to add symbols to the loop:
+Edit the `SIM_SYMBOLS` environment variable in `docker-compose.yml` or `.env`:
+```bash
+SIM_SYMBOLS=BTC-USD,ETH-USD,SOL-USD,DOGE-USD,XRP-USD,AVAX-USD
+```
+
+Make sure to add tick sizes in `apps/worker/config.py`:
 ```python
-for symbol in ["BTC-PERP", "ETH-PERP", "SOL-PERP"]:
-    # fetch market data...
+def tick_sizes(self) -> dict[str, float]:
+    return {
+        "BTC-USD": 0.5,
+        "ETH-USD": 0.01,
+        "AVAX-USD": 0.001,  # Add new symbol
+        # ...
+    }
 ```
 
 ### Adjust Cycle Frequency
-Set `CYCLE_INTERVAL_SECONDS` to desired seconds (e.g., 300 for 5 minutes).
+Set `CYCLE_INTERVAL_SECONDS` in `.env` (e.g., 300 for 5 minutes, 3600 for 1 hour).
 
 ### Change LLM Model
-Set `OPENROUTER_MODEL` to any model available on OpenRouter. For best results, use a model that supports JSON mode.
+Set `OPENROUTER_MODEL` in `.env` to any model available on OpenRouter:
+```bash
+# Cost-effective options:
+OPENROUTER_MODEL=deepseek/deepseek-v3.2-exp
+OPENROUTER_MODEL=anthropic/claude-sonnet-4.5
+OPENROUTER_MODEL=google/gemini-2.5-pro
+
+# High-performance options:
+OPENROUTER_MODEL=openai/gpt-5
+OPENROUTER_MODEL=x-ai/grok-4
+```
+
+For best results, use models with strong JSON mode and reasoning capabilities.
+
+### Modify the System Prompt
+Edit `apps/worker/system_prompt.py` to change trading strategy, risk management rules, or decision-making guidelines.
+
+### Add Custom Indicators
+Add indicator calculations in `apps/worker/main.py` in the `build_observation()` method. Include results in the observation JSON sent to the LLM.
+
+Example:
+```python
+# Calculate custom indicator
+bb_upper, bb_lower = calculate_bollinger_bands(candles)
+market.bollinger_bands = {"upper": bb_upper, "lower": bb_lower}
+```
+
+The LLM will see this in the observation and can use it for decisions.
 
 ### Tune Validation Rules
-Edit `apps/worker/validator.py` to add custom constraints (e.g., max position size, symbol whitelist).
-
-**Q: How do I add custom indicators?**
-A: Add indicator functions to `apps/worker/main.py` in `build_observation()`. Include the results in the observation JSON sent to the LLM.
+Edit `apps/worker/validator.py` to add custom constraints:
+- Maximum position size per symbol
+- Symbol whitelisting/blacklisting
+- Maximum total exposure
+- Time-based trading restrictions
 
 ## License
 
@@ -215,6 +338,7 @@ Contributions welcome! Please open an issue or PR on GitHub.
 ## Acknowledgments
 
 - [OpenRouter](https://openrouter.ai) for unified LLM API access
-- [Qwen](https://www.alibabacloud.com/en/solutions/generative-ai/qwen) for the Qwen3-Max model
+- [DeepSeek](https://www.deepseek.com/) for the DeepSeek V3.2 model
 - [Hyperliquid](https://hyperliquid.xyz) for providing an optional live trading backend
-- Inspired by autonomous agent research and the nof1 dashboard
+- [Coinbase](https://www.coinbase.com/) for real-time market data via WebSocket
+- Inspired by autonomous agent research and quantitative trading systems
