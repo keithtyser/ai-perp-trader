@@ -96,6 +96,7 @@ class Scoreboard(BaseModel):
     sharpe_30d: float
     max_dd: float
     performance: Optional[PerformanceMetrics] = None
+    per_symbol_performance: Optional[Dict[str, Dict]] = None
 
 
 class CompletedTrade(BaseModel):

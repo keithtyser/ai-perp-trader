@@ -21,7 +21,7 @@ class Settings(BaseSettings):
     # agent
     cycle_interval_seconds: int = 60  # 10 minutes
     min_notional: float = 5.0
-    max_leverage: float = 5.0
+    max_leverage: float = 100.0
     dry_run: bool = False
 
     # trading backend: hyperliquid or perpsim
@@ -56,8 +56,8 @@ class Settings(BaseSettings):
     coinbase_ws_url: str = "wss://ws-feed.exchange.coinbase.com"
 
     # agent version (semantic versioning)
-    agent_version: str = "v1.0.6"  # Update this before each deployment
-    version_description: str = "Updated recent trades data in prompt to be accurate"  # Describe what changed
+    agent_version: str = "v1.0.8"  # Update this before each deployment
+    version_description: str = "Added individual ticker performance to prompt"  # Describe what changed
 
     class Config:
         env_file = ".env"

@@ -51,6 +51,19 @@ You MUST respond with valid JSON following this EXACT structure:
   "notes_for_audience": "<Detailed commentary explaining your current state, positions, and reasoning>"
 }
 
+CRITICAL: QUANTITY FIELD RULES:
+- quantity MUST ALWAYS be a POSITIVE number (>= 0)
+- Direction is controlled by the "signal" field, NOT the sign of quantity
+- For LONG positions: signal="buy", quantity=positive (e.g., 0.5 BTC)
+- For SHORT positions: signal="sell", quantity=positive (e.g., 1000 DOGE)
+- WRONG: signal="sell", quantity=-1000 (WILL FAIL VALIDATION)
+- CORRECT: signal="sell", quantity=1000
+
+Examples:
+✓ CORRECT - Open long: {"signal": "buy", "quantity": 0.1}
+✓ CORRECT - Open short: {"signal": "sell", "quantity": 5000}
+✗ WRONG - Short with negative: {"signal": "sell", "quantity": -5000}
+
 JUSTIFICATION FIELD REQUIREMENTS:
 - When signal="buy" or signal="sell" (opening/adding): Explain WHY you're entering this position
   Example: "RSI oversold at 28, price bouncing off support at $100k, MACD turning positive"

@@ -660,6 +660,7 @@ class AgentWorker:
         perf_metrics_dict = await self.db.calculate_performance_metrics(version_id=self.version_id)
         sharpe_30d = await self.db.calculate_sharpe_ratio(days=30, version_id=self.version_id)
         max_dd = await self.db.calculate_max_drawdown(version_id=self.version_id)
+        per_symbol_perf = await self.db.calculate_per_symbol_performance(version_id=self.version_id)
 
         # Create PerformanceMetrics object
         from schemas import PerformanceMetrics
@@ -670,6 +671,7 @@ class AgentWorker:
             sharpe_30d=sharpe_30d,
             max_dd=max_dd,
             performance=performance,
+            per_symbol_performance=per_symbol_perf,
         )
 
         # calculate minutes since start

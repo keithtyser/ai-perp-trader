@@ -284,6 +284,19 @@ Total Volume Traded: ${perf.total_volume:.2f}
 
 """
 
+        # Add per-symbol performance breakdown
+        if obs.scoreboard.per_symbol_performance:
+            prompt += "Performance Breakdown by Symbol:\n"
+            for symbol, stats in sorted(obs.scoreboard.per_symbol_performance.items()):
+                # Strip -USD suffix for cleaner display
+                clean_symbol = symbol.replace('-USD', '')
+                status = "✓" if stats['total_pnl'] > 0 else "✗"
+                prompt += f"  {status} {clean_symbol}: Total P&L ${stats['total_pnl']:+.2f} | "
+                prompt += f"{stats['total_trades']} trades | "
+                prompt += f"Win Rate {stats['win_rate']:.1f}% | "
+                prompt += f"Avg P&L ${stats['avg_pnl']:+.2f}\n"
+            prompt += "\n"
+
     # Add limits
     prompt += f"""Trading Limits:
 Min Notional: ${obs.limits.min_notional}

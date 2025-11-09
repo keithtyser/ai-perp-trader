@@ -396,6 +396,59 @@ class Database:
             "total_volume": round(total_volume, 2),
         }
 
+    async def calculate_per_symbol_performance(self, version_id: int = None) -> Dict[str, Dict]:
+        """
+        Calculate performance metrics broken down by symbol.
+
+        Args:
+            version_id: Optional version ID to filter trades
+
+        Returns dict of symbol -> performance metrics:
+        - total_pnl: Total P&L for this symbol
+        - total_trades: Number of completed trades
+        - win_rate: % of profitable trades
+        - avg_pnl: Average P&L per trade
+        - largest_win: Biggest winning trade
+        - largest_loss: Biggest losing trade
+        """
+        completed = await self.get_completed_trades(limit=10000, version_id=version_id)
+
+        if not completed:
+            return {}
+
+        # Group trades by symbol
+        symbol_trades = {}
+        for trade in completed:
+            symbol = trade["symbol"]
+            if symbol not in symbol_trades:
+                symbol_trades[symbol] = []
+            symbol_trades[symbol].append(trade)
+
+        # Calculate metrics per symbol
+        per_symbol_stats = {}
+        for symbol, trades in symbol_trades.items():
+            winning_trades = [t for t in trades if t["net_pnl"] > 0]
+            losing_trades = [t for t in trades if t["net_pnl"] < 0]
+
+            total_trades = len(trades)
+            num_wins = len(winning_trades)
+            total_pnl = sum(t["net_pnl"] for t in trades)
+            win_rate = (num_wins / total_trades * 100) if total_trades > 0 else 0.0
+            avg_pnl = total_pnl / total_trades if total_trades > 0 else 0.0
+            largest_win = max((t["net_pnl"] for t in winning_trades), default=0.0)
+            largest_loss = min((t["net_pnl"] for t in losing_trades), default=0.0)
+
+            per_symbol_stats[symbol] = {
+                "total_pnl": round(total_pnl, 2),
+                "total_trades": total_trades,
+                "win_rate": round(win_rate, 1),
+                "avg_pnl": round(avg_pnl, 2),
+                "largest_win": round(largest_win, 2),
+                "largest_loss": round(largest_loss, 2),
+            }
+
+        return per_symbol_stats
+
     async def calculate_sharpe_ratio(self, days: int = 30, version_id: int = None) -> float:
         """
         Calculate Sharpe ratio from equity snapshots.
