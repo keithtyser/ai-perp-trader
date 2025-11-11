@@ -39,7 +39,15 @@ db_pool: Optional[asyncpg.Pool] = None
 @app.on_event("startup")
 async def startup():
     global db_pool
-    db_pool = await asyncpg.create_pool(settings.database_url, min_size=2, max_size=10)
+    db_pool = await asyncpg.create_pool(
+        settings.database_url,
+        min_size=2,
+        max_size=10,
+        command_timeout=60,  # 60 second timeout for queries
+        server_settings={
+            'statement_timeout': '60000'  # 60 second statement timeout (in ms)
+        }
+    )
 
 
 @app.on_event("shutdown")
@@ -170,14 +178,19 @@ async def get_completed_trades(
     version_id = await get_current_version_id()
 
     async with db_pool.acquire() as conn:
+        # Fetch recent trades with a reasonable limit to prevent memory issues
+        # Most recent 5000 trades should be enough to calculate latest completed trades
         rows = await conn.fetch(
             """
             select ts, symbol, side, qty, price, fee, entry_reason, exit_reason from trades
             where version_id = $1 or $1 is null
-            order by ts
+            order by ts desc
+            limit 5000
             """,
             version_id
         )
+        # Reverse to process chronologically
+        rows = list(reversed(rows))
 
         positions = {}
         completed = []
@@ -435,15 +448,19 @@ async def get_performance_stats():
     version_id = await get_current_version_id()
 
     async with db_pool.acquire() as conn:
-        # Get all completed trades for current version to calculate metrics
+        # Get recent completed trades for current version to calculate metrics
+        # Limit to recent 5000 trades to prevent memory issues
         rows = await conn.fetch(
             """
             select ts, symbol, side, qty, price, fee from trades
             where version_id = $1 or $1 is null
-            order by ts
+            order by ts desc
+            limit 5000
             """,
             version_id
         )
+        # Reverse to process chronologically
+        rows = list(reversed(rows))
 
         positions = {}
         completed = []

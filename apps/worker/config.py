@@ -56,8 +56,8 @@ class Settings(BaseSettings):
     coinbase_ws_url: str = "wss://ws-feed.exchange.coinbase.com"
 
     # agent version (semantic versioning)
-    agent_version: str = "v1.0.8"  # Update this before each deployment
-    version_description: str = "Added individual ticker performance to prompt"  # Describe what changed
+    agent_version: str = "v2.0.0"  # Update this before each deployment
+    version_description: str = "YOLO Degen Mode"  # Describe what changed
 
     class Config:
         env_file = ".env"

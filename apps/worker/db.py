@@ -16,7 +16,15 @@ class Database:
 
     async def connect(self):
         """create connection pool"""
-        self.pool = await asyncpg.create_pool(self.database_url, min_size=2, max_size=10)
+        self.pool = await asyncpg.create_pool(
+            self.database_url,
+            min_size=2,
+            max_size=10,
+            command_timeout=60,  # 60 second timeout for queries
+            server_settings={
+                'statement_timeout': '60000'  # 60 second statement timeout (in ms)
+            }
+        )
         logger.info("database pool created")
 
     async def close(self):
@@ -187,15 +195,21 @@ class Database:
             version_id: Optional version ID to filter trades
         """
         async with self.pool.acquire() as conn:
+            # Fetch recent trades with a limit to prevent memory issues
+            # We'll fetch more than the requested limit to ensure we can calculate completed positions
+            fetch_limit = max(limit * 10, 5000)
             if version_id is not None:
                 rows = await conn.fetch(
-                    "select ts, symbol, side, qty, price, fee, entry_reason, exit_reason from trades where version_id = $1 order by ts",
-                    version_id
+                    "select ts, symbol, side, qty, price, fee, entry_reason, exit_reason from trades where version_id = $1 order by ts desc limit $2",
+                    version_id, fetch_limit
                 )
             else:
                 rows = await conn.fetch(
-                    "select ts, symbol, side, qty, price, fee, entry_reason, exit_reason from trades order by ts"
+                    "select ts, symbol, side, qty, price, fee, entry_reason, exit_reason from trades order by ts desc limit $1",
+                    fetch_limit
                 )
+            # Reverse to process chronologically
+            rows = list(reversed(rows))
 
             positions = {}  # symbol -> {qty, cost, entry_time, entry_trades, fees, entry_reason}
             completed = []
